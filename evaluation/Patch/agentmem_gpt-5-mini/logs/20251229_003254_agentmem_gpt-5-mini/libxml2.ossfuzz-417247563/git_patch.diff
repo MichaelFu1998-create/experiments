@@ -1,0 +1,20 @@
+diff --git a/xmlIO.c b/xmlIO.c
+index 80390f4b..c735bd0b 100644
+--- a/xmlIO.c
++++ b/xmlIO.c
+@@ -273,6 +273,7 @@ xmlEscapeText(const xmlChar *string, int flags) {
+     if (buffer == NULL)
+         return(NULL);
+     out = buffer;
++    char tempBuf[12];
+ 
+     cur = string;
+ 
+@@ -315,7 +316,6 @@ xmlEscapeText(const xmlChar *string, int flags) {
+                 cur += 1;
+             }
+         } else {
+-            char tempBuf[12];
+             int val = 0, len = 4;
+ 
+             val = xmlGetUTF8Char(cur, &len);

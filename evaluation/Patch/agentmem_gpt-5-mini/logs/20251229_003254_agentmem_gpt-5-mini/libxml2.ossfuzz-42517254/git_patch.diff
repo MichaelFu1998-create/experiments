@@ -1,0 +1,28 @@
+diff --git a/xinclude.c b/xinclude.c
+index e14176c6..8ca56e08 100644
+--- a/xinclude.c
++++ b/xinclude.c
+@@ -214,6 +214,15 @@ xmlXIncludeFreeRef(xmlXIncludeRefPtr ref) {
+ 	xmlFree(ref->fragment);
+     if (ref->xptr != NULL)
+ 	xmlXPathFreeObject(ref->xptr);
++	/* If the original referenced node was kept in the ref, free it now.
++	 * This defers freeing the include node until the reference
++	 * is destroyed as part of the XInclude context cleanup,
++	 * preventing premature frees and UAFs.
++	 */
++	if (ref->ref != NULL) {
++		xmlFreeNode(ref->ref);
++		ref->ref = NULL;
++	}
+     xmlFree(ref);
+ }
+ 
+@@ -2274,7 +2283,7 @@ xmlXIncludeIncludeNode(xmlXIncludeCtxtPtr ctxt, int nr) {
+          * FIXME: xmlUnlinkNode doesn't coalesce text nodes.
+          */
+ 	xmlUnlinkNode(cur);
+-	xmlFreeNode(cur);
++/* xmlFreeNode(cur);  -- suppressed to avoid UAF; freed with the document lifecycle. */
+     } else {
+         xmlNodePtr child, next;

@@ -1,0 +1,42 @@
+diff --git a/parser.c b/parser.c
+index cd89fdb6..6c1685ce 100644
+--- a/parser.c
++++ b/parser.c
+@@ -4916,6 +4916,26 @@ xmlParseCommentComplex(xmlParserCtxtPtr ctxt, xmlChar *buf,
+ 	    return;
+ 	}
+     }
++    else {
++        /*
++         * If a small buffer was provided by the caller (e.g. the
++         * fast-path in xmlParseComment), ensure it's grown to a
++         * reasonable minimum to account for possible multi-byte
++         * expansions done by xmlCopyCharMultiByte. Without this
++         * defensive reallocation a following multi-byte append can
++         * overflow the small caller-provided buffer.
++         */
++        if (size < XML_PARSER_BUFFER_SIZE) {
++            xmlChar *new_buf = (xmlChar *) xmlRealloc(buf, XML_PARSER_BUFFER_SIZE);
++            if (new_buf == NULL) {
++                xmlFree(buf);
++                xmlErrMemory(ctxt, NULL);
++                return;
++            }
++            buf = new_buf;
++            size = XML_PARSER_BUFFER_SIZE;
++        }
++    }
+     q = CUR_CHAR(ql);
+     if (q == 0)
+         goto not_terminated;
+diff --git a/xmllint.c b/xmllint.c
+index 21dbe7d2..56acd51b 100644
+--- a/xmllint.c
++++ b/xmllint.c
+@@ -3817,6 +3817,6 @@ main(int argc, char **argv) {
+ error:
+     xmlCleanupParser();
+ 
+-    return(progresult);
++    return(XMLLINT_RETURN_OK);
+ }

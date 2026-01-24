@@ -1,0 +1,11 @@
+{
+  "instance_id": "mruby.ossfuzz-42513157",
+  "final_status": "failed",
+  "total_token_usage": {
+    "input_tokens": 4202961,
+    "output_tokens": 88574
+  },
+  "timing": {
+    "total_duration": 1851.8883559703827
+  }
+}

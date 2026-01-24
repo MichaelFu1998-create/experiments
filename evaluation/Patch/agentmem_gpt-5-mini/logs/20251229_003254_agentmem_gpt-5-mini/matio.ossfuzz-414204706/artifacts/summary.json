@@ -1,0 +1,11 @@
+{
+  "instance_id": "matio.ossfuzz-414204706",
+  "final_status": "success",
+  "total_token_usage": {
+    "input_tokens": 272013,
+    "output_tokens": 13056
+  },
+  "timing": {
+    "total_duration": 297.1101062297821
+  }
+}

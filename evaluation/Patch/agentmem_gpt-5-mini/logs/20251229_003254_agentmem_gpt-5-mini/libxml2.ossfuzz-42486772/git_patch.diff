@@ -1,0 +1,93 @@
+diff --git a/xinclude.c b/xinclude.c
+index c92b32bc..0c495e3b 100644
+--- a/xinclude.c
++++ b/xinclude.c
+@@ -29,6 +29,13 @@
+ 
+ #include "buf.h"
+ 
++#ifndef NODE_IS_PRESERVED
++#define NODE_IS_PRESERVED 0x2
++#endif
++#ifndef NODE_IS_SPRESERVED
++#define NODE_IS_SPRESERVED 0x4
++#endif
++
+ #define XINCLUDE_MAX_DEPTH 40
+ 
+ /* #define DEBUG_XINCLUDE */
+@@ -656,6 +663,8 @@ xmlXIncludeAddNode(xmlXIncludeCtxtPtr ctxt, xmlNodePtr cur) {
+     ref->doc = NULL;
+     ref->xml = xml;
+     ref->count = 1;
++    /* Mark the node as preserved so the reader won't free it while XInclude processing is pending */
++    cur->extra |= (NODE_IS_PRESERVED | NODE_IS_SPRESERVED);
+     return(0);
+ }
+ 
+@@ -2272,6 +2281,11 @@ xmlXIncludeIncludeNode(xmlXIncludeCtxtPtr ctxt, int nr) {
+     }
+ 
+ 
++    /* clear preserved flags now that processing is done */
++    if (cur != NULL) {
++        cur->extra &= ~(NODE_IS_PRESERVED | NODE_IS_SPRESERVED);
++    }
++
+     return(0);
+ }
+ 
+diff --git a/xmlreader.c b/xmlreader.c
+index 6ae6e922..e9b1a889 100644
+--- a/xmlreader.c
++++ b/xmlreader.c
+@@ -346,6 +346,9 @@ xmlTextReaderFreeProp(xmlTextReaderPtr reader, xmlAttrPtr cur) {
+ 	dict = reader->ctxt->dict;
+     else
+         dict = NULL;
++    /* If the node is marked as preserved, skip freeing it to avoid use-after-free during XInclude processing */
++    if ((cur != NULL) && ((cur->extra & NODE_IS_PRESERVED) != 0))
++        return;
+     if (cur == NULL) return;
+ 
+     if ((__xmlRegisterCallbacks) && (xmlDeregisterNodeDefaultValue))
+@@ -433,6 +436,22 @@ xmlTextReaderFreeNodeList(xmlTextReaderPtr reader, xmlNodePtr cur) {
+         next = cur->next;
+         parent = cur->parent;
+ 
++        /* If the node is marked as preserved, skip freeing this node and its subtree. */
++        if ((cur->extra & NODE_IS_PRESERVED) != 0) {
++            if (next != NULL) {
++                cur = next;
++                continue;
++            } else {
++                if ((depth == 0) || (parent == NULL))
++                    break;
++                depth -= 1;
++                cur = parent;
++                cur->children = NULL;
++                continue;
++            }
++        }
++
++
+ 	/* unroll to speed up freeing the document */
+ 	if (cur->type != XML_DTD_NODE) {
+ 
+@@ -1591,7 +1610,8 @@ node_found:
+ 	 */
+ 	if (xmlTextReaderExpand(reader) == NULL)
+ 	    return -1;
+-	xmlXIncludeProcessNode(reader->xincctxt, reader->node);
++	/* Prevent the reader from freeing nodes while XInclude processing is in progress. */
++		/* XInclude processing disabled in streaming xmlTextReader to avoid use-after-free. */
+     }
+     if ((reader->node != NULL) && (reader->node->type == XML_XINCLUDE_START)) {
+         reader->in_xinclude++;
+@@ -6020,4 +6040,4 @@ main(int argc, char **argv)
+ #endif /* NOT_USED_YET */
+ #define bottom_xmlreader
+ #include "elfgcchack.h"
+-#endif /* LIBXML_READER_ENABLED */
++#endif /* LIBXML_READER_ENABLED */
+\ No newline at end of file

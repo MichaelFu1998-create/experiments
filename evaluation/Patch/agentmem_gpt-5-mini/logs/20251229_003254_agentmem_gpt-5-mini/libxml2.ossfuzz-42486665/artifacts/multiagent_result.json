@@ -1,0 +1,226 @@
+{
+  "instance_id": "libxml2.ossfuzz-42486665",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"/src/libxml2/xmlsave.c\",\n      \"line\": 897,\n      \"message\": \"ASan report: heap-use-after-free read in xmlNodeDumpOutputInternal while dumping document content\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/libxml2/xinclude.c\",\n      \"line\": 2232,\n      \"message\": \"xmlXIncludeIncludeNode calls xmlFreeNode/xmlFreeNs while included nodes/namespaces may still be reachable\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/libxml2/tree.c\",\n      \"line\": 837,\n      \"message\": \"xmlFreeNs (and xmlFreeNodeList/xmlFreeNode) frees namespace/node memory reported as the free site in ASan trace\",\n      \"severity\": \"note\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"CodeQL allocation query returned no direct allocation errors, but ASan shows a clear use-after-free: xinclude.c frees node/namespace memory that xmlsave.c later accesses when dumping the document. Root cause is incorrect ownership/lifetime handling of nodes/namespaces during XInclude processing.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Clone included nodes and their namespaces when performing XInclude (deep copy into the target document).\",\n      \"reasoning\": \"Cloning gives the target document independent ownership of nodes/namespaces, preventing frees in the source from affecting the dumped document. This is a localized change in the inclusion path.\",\n      \"trade_offs\": \"Increases memory usage and CPU due to deep copies; must ensure all relevant fields (namespaces, attributes, childs) are copied correctly.\")\n    },\n    {\n      \"approach\": \"Introduce explicit ownership / reference counting or marking for nodes/namespaces so frees occur only when no references remain.\",\n      \"reasoning\": \"Proper ownership semantics prevents premature frees and is robust across code paths.\",\n      \"trade_offs\": \"Requires invasive changes across the codebase, careful concurrency and API handling; higher complexity and testing burden.\")\n    },\n    {\n      \"approach\": \"Avoid freeing nodes/namespaces inside xmlXIncludeIncludeNode; instead detach nodes from source and attach to target, or delay frees until document finalization.\",\n      \"reasoning\": \"Small-scope change that prevents immediate dangling pointers observed by dump routines.\",\n      \"trade_offs\": \"Risk of memory leaks if lifecycle not managed properly; may require additional bookkeeping to free memory later.\")\n    }\n  ],\n  \"recommended_fix\": \"Clone included nodes and namespaces at inclusion time (approach 1) as the preferred mitigation: it is the least invasive to other ownership code, immediately prevents UAFs, and is straightforward to audit and test.\"\n}",
+    "parsed_output": {
+      "raw": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"/src/libxml2/xmlsave.c\",\n      \"line\": 897,\n      \"message\": \"ASan report: heap-use-after-free read in xmlNodeDumpOutputInternal while dumping document content\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/libxml2/xinclude.c\",\n      \"line\": 2232,\n      \"message\": \"xmlXIncludeIncludeNode calls xmlFreeNode/xmlFreeNs while included nodes/namespaces may still be reachable\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/libxml2/tree.c\",\n      \"line\": 837,\n      \"message\": \"xmlFreeNs (and xmlFreeNodeList/xmlFreeNode) frees namespace/node memory reported as the free site in ASan trace\",\n      \"severity\": \"note\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"CodeQL allocation query returned no direct allocation errors, but ASan shows a clear use-after-free: xinclude.c frees node/namespace memory that xmlsave.c later accesses when dumping the document. Root cause is incorrect ownership/lifetime handling of nodes/namespaces during XInclude processing.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Clone included nodes and their namespaces when performing XInclude (deep copy into the target document).\",\n      \"reasoning\": \"Cloning gives the target document independent ownership of nodes/namespaces, preventing frees in the source from affecting the dumped document. This is a localized change in the inclusion path.\",\n      \"trade_offs\": \"Increases memory usage and CPU due to deep copies; must ensure all relevant fields (namespaces, attributes, childs) are copied correctly.\")\n    },\n    {\n      \"approach\": \"Introduce explicit ownership / reference counting or marking for nodes/namespaces so frees occur only when no references remain.\",\n      \"reasoning\": \"Proper ownership semantics prevents premature frees and is robust across code paths.\",\n      \"trade_offs\": \"Requires invasive changes across the codebase, careful concurrency and API handling; higher complexity and testing burden.\")\n    },\n    {\n      \"approach\": \"Avoid freeing nodes/namespaces inside xmlXIncludeIncludeNode; instead detach nodes from source and attach to target, or delay frees until document finalization.\",\n      \"reasoning\": \"Small-scope change that prevents immediate dangling pointers observed by dump routines.\",\n      \"trade_offs\": \"Risk of memory leaks if lifecycle not managed properly; may require additional bookkeeping to free memory later.\")\n    }\n  ],\n  \"recommended_fix\": \"Clone included nodes and namespaces at inclusion time (approach 1) as the preferred mitigation: it is the least invasive to other ownership code, immediately prevents UAFs, and is straightforward to audit and test.\"\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 34517,
+      "output_tokens": 4241
+    },
+    "timing": {
+      "start_time": 1769055189.2309146,
+      "end_time": 1769055273.011778,
+      "duration": 83.78086352348328
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in xmlNodeDumpOutputInternal (xmlsave.c): during XInclude processing (xmlXIncludeIncludeNode in xinclude.c) namespace/node structures are freed (via xmlFreeNs/xmlFreeNode) while they are still reachable and later accessed by document-dumping functions (xmlDocContentDumpOutput / xmlDocDumpFormatMemoryEnc",
+      "total_steps": 4,
+      "total_duration": 83.78086352348328,
+      "total_input_tokens": 34517,
+      "total_output_tokens": 4241,
+      "total_cost": 0.005992424999999999,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x5040000003e8\",\n    \"type\": \"use-after-free\",\n    \"location\": \"xmlsave.c:897 (xmlNodeDumpOutputInternal)\"\n  },\n  \"backtrace\": [\n    \"xmlNodeDumpOutputInternal /src/libxml2/xmlsave.c:897:48\",\n    \"xmlDocContentDumpOutput /src/libxml2/xmlsave.c:1228:7\",\n    \"xmlSaveDoc /src/libxml2/xmlsave.c:1858:9\",\n    \"parseAndPrintFile /src/libxml2/xmllint.c:2702:11\",\n    \"main /src/libxml2/xmllint.c:3738:7\",\n\n    \"<free path> free (asan)\",\n    \"xmlFreeNs /src/libxml2/tree.c:837:5\",\n    \"xmlFreeNsList /src/libxml2/tree.c:858:9\",\n    \"xmlFreeNodeList /src/libxml2/tree.c:3723:3\",\n    \"xmlFreeNode /src/libxml2/tree.c:3789:2\",\n    \"xmlXIncludeIncludeNode /src/libxml2/xinclude.c:2232:2\",\n    \"xmlXIncludeDoProcess /src/libxml2/xinclude.c:2460:6\",\n    \"xmlXIncludeProcessTreeFlagsData /src/libxml2/xinclude.c:2513:11\",\n\n    \"<alloc path> malloc (asan)\",\n    \"xmlNewNs /src/libxml2/tree.c:757:22\",\n    \"xmlSAX2StartElementNs /src/libxml2/SAX2.c:2285:7\",\n    \"xmlParseStartTag2 /src/libxml2/parser.c\"\n  ],\n  \"memory_state\": \"ASan: address 0x5040000003e8 is 24 bytes inside a 48-byte heap region [0x5040000003d0..0x504000000400) that was freed. The code later reads 8 bytes from that freed region in xmlNodeDumpOutputInternal.\",\n  \"root_cause_hint\": \"During XInclude processing (xmlXIncludeIncludeNode/xmlXIncludeDoProcess) namespaces and/or node structures are freed (xmlFreeNs/xmlFreeNode) while other parts of the program (document-dumping functions such as xmlNodeDumpOutputInternal/xmlDocContentDumpOutput) still hold pointers to those structures. The sanitizer backtrace shows allocation (xmlNewNs) happened during parsing and the free happened during XInclude processing; later the dump code accesses the freed namespace/node, causing a heap-use-after-free.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Transfer or duplicate nodes/namespaces when including (deep copy or reparent with ownership transfer)\",\n      \"reasoning\": \"If included nodes and their namespace lists are copied into the target document (or ownership is clearly transferred), the dumping code will reference valid memory owned by the target document and there will be no premature free of structures still in use.\",\n      \"trade_offs\": \"Deep copying increases memory usage and CPU cost. Ownership transfer requires careful updates to pointers and bookkeeping to avoid double-free; both need regression tests to ensure no leaks or dangling references remain.\"\n    },\n    {\n      \"approach\": \"Avoid freeing namespace/node structures while they may still be referenced (introduce reference counting or mark-and-delay-free semantics)\",\n      \"reasoning\": \"Reference counting ensures an object is only freed when no references remain; marking nodes/namespaces as in-use by the document dump will prevent freeing during XInclude processing until safe.\",\n      \"trade_offs\": \"Reference counting adds complexity and runtime overhead; it requires auditing all code paths that take/lose references to increment/decrement counts correctly. It can also introduce cycles requiring weak refs or cycle-breaking logic.\"\n    },\n    {\n      \"approach\": \"Adjust XInclude processing to unlink nodes safely rather than freeing them immediately (e.g., use xmlUnlinkNode + transfer to a pool cleaned later when safe)\",\n      \"reasoning\": \"Unlinking removes nodes from the original context while not freeing the memory immediately; the dump can still operate on them, and cleanup can occur at a well-defined later point when no references remain.\",\n      \"trade_offs\": \"Requires clear lifecycle management and a deterministic cleanup point; delaying frees can increase peak memory usage and requires changes across the XInclude workflow to ensure no leaks.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb"
+      ],
+      "crash_info": {
+        "address": "0x5040000003e8",
+        "type": "use-after-free",
+        "location": "xmlsave.c:897 (xmlNodeDumpOutputInternal)"
+      },
+      "backtrace": [
+        "xmlNodeDumpOutputInternal /src/libxml2/xmlsave.c:897:48",
+        "xmlDocContentDumpOutput /src/libxml2/xmlsave.c:1228:7",
+        "xmlSaveDoc /src/libxml2/xmlsave.c:1858:9",
+        "parseAndPrintFile /src/libxml2/xmllint.c:2702:11",
+        "main /src/libxml2/xmllint.c:3738:7",
+        "<free path> free (asan)",
+        "xmlFreeNs /src/libxml2/tree.c:837:5",
+        "xmlFreeNsList /src/libxml2/tree.c:858:9",
+        "xmlFreeNodeList /src/libxml2/tree.c:3723:3",
+        "xmlFreeNode /src/libxml2/tree.c:3789:2",
+        "xmlXIncludeIncludeNode /src/libxml2/xinclude.c:2232:2",
+        "xmlXIncludeDoProcess /src/libxml2/xinclude.c:2460:6",
+        "xmlXIncludeProcessTreeFlagsData /src/libxml2/xinclude.c:2513:11",
+        "<alloc path> malloc (asan)",
+        "xmlNewNs /src/libxml2/tree.c:757:22",
+        "xmlSAX2StartElementNs /src/libxml2/SAX2.c:2285:7",
+        "xmlParseStartTag2 /src/libxml2/parser.c"
+      ],
+      "memory_state": "ASan: address 0x5040000003e8 is 24 bytes inside a 48-byte heap region [0x5040000003d0..0x504000000400) that was freed. The code later reads 8 bytes from that freed region in xmlNodeDumpOutputInternal.",
+      "root_cause_hint": "During XInclude processing (xmlXIncludeIncludeNode/xmlXIncludeDoProcess) namespaces and/or node structures are freed (xmlFreeNs/xmlFreeNode) while other parts of the program (document-dumping functions such as xmlNodeDumpOutputInternal/xmlDocContentDumpOutput) still hold pointers to those structures. The sanitizer backtrace shows allocation (xmlNewNs) happened during parsing and the free happened during XInclude processing; later the dump code accesses the freed namespace/node, causing a heap-use-after-free.",
+      "fix_suggestions": [
+        {
+          "approach": "Transfer or duplicate nodes/namespaces when including (deep copy or reparent with ownership transfer)",
+          "reasoning": "If included nodes and their namespace lists are copied into the target document (or ownership is clearly transferred), the dumping code will reference valid memory owned by the target document and there will be no premature free of structures still in use.",
+          "trade_offs": "Deep copying increases memory usage and CPU cost. Ownership transfer requires careful updates to pointers and bookkeeping to avoid double-free; both need regression tests to ensure no leaks or dangling references remain."
+        },
+        {
+          "approach": "Avoid freeing namespace/node structures while they may still be referenced (introduce reference counting or mark-and-delay-free semantics)",
+          "reasoning": "Reference counting ensures an object is only freed when no references remain; marking nodes/namespaces as in-use by the document dump will prevent freeing during XInclude processing until safe.",
+          "trade_offs": "Reference counting adds complexity and runtime overhead; it requires auditing all code paths that take/lose references to increment/decrement counts correctly. It can also introduce cycles requiring weak refs or cycle-breaking logic."
+        },
+        {
+          "approach": "Adjust XInclude processing to unlink nodes safely rather than freeing them immediately (e.g., use xmlUnlinkNode + transfer to a pool cleaned later when safe)",
+          "reasoning": "Unlinking removes nodes from the original context while not freeing the memory immediately; the dump can still operate on them, and cleanup can occur at a well-defined later point when no references remain.",
+          "trade_offs": "Requires clear lifecycle management and a deterministic cleanup point; delaying frees can increase peak memory usage and requires changes across the XInclude workflow to ensure no leaks."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 28733,
+      "output_tokens": 3528
+    },
+    "timing": {
+      "start_time": 1769055273.0156035,
+      "end_time": 1769055324.0827825,
+      "duration": 51.06717896461487
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in xmlNodeDumpOutputInternal (xmlsave.c): during XInclude processing (xmlXIncludeIncludeNode in xinclude.c) namespace/node structures are freed (via xmlFreeNs/xmlFreeNode) while they are still reachable and later accessed by document-dumping functions (xmlDocContentDumpOutput / xmlDocDumpFormatMemoryEnc",
+      "total_steps": 3,
+      "total_duration": 51.06717896461487,
+      "total_input_tokens": 28733,
+      "total_output_tokens": 3528,
+      "total_cost": 0.004513225,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"xmlsave.c\",\n  \"function_analyzed\": \"xmlNodeDumpOutputInternal\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"27119ec\",\n      \"message\": \"Fix quadratic runtime in xi:fallback processing\",\n      \"changes\": \"Replaced xmlDocCopyNodeList(fallback->children) with assigning ctxt->incTab[nr]->inc = fallback->children; moved removal of fallback children later when building inclusion.\",\n      \"relevance\": \"Introduces shared ownership of fallback children instead of copies. This change can leave later frees (xmlFreeNode) operating on nodes/namespaces still referenced by the document dump, enabling heap-use-after-free.\"\n    },\n    {\n      \"hash\": \"00a86d4\",\n      \"message\": \"Don't add formatting newlines to XInclude nodes\",\n      \"changes\": \"Changed xmlNodeDumpOutputInternal/xmlDocContentDumpOutput to skip adding formatting newlines for XML_XINCLUDE_START/END node types.\",\n      \"relevance\": \"Alters dumping behavior for XInclude nodes and highlights special-casing of XInclude node types in the serializer; indicates interaction surface between XInclude processing and document dumping.\"\n    },\n    {\n      \"hash\": \"7b2e517\",\n      \"message\": \"Fix *NodeDumpOutput functions\",\n      \"changes\": \"Adjusted end-tag output to only print for element nodes and reorganized formatting logic in xmlNodeDumpOutputInternal.\",\n      \"relevance\": \"Modifies how end tags and formatting are emitted; combined with XInclude special-casing this affects when and how nodes (and their namespaces) are accessed during serialization.\"\n    },\n    {\n      \"hash\": \"1a360c1\",\n      \"message\": \"More *NodeDumpOutput fixes\",\n      \"changes\": \"Restricted several leaving-node operations to XML_ELEMENT_NODE and moved level/indent updates inside element checks.\",\n      \"relevance\": \"Further refines dumping logic to operate only on element nodes; emphasizes that non-element XInclude marker nodes are treated differently which can mask/trigger use-after-free if node lifetimes are mishandled.\"\n    }\n  ],\n  \"vulnerability_origin\": \"A change in xinclude.c replaced copying fallback children with reusing fallback->children (shared pointers). That introduced shared ownership of node/namespace structures; later xmlXIncludeIncludeNode frees/unlinks nodes/namespaces while the serializer (xmlNodeDumpOutputInternal) still expects them, causing heap-use-after-free.\",\n  \"fix_hints\": \"Restore independent copies for included fallback content or establish clear ownership semantics (no free while serializer can reach nodes). Ensure XInclude processing does not free namespaces/nodes that may be referenced by the document dump; alternatively, adjust serializer to avoid accessing XInclude-related nodes that might be transient.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Restore copying of included/fallback node lists (use xmlDocCopyNodeList or xmlXIncludeCopyNodeList) when setting ctxt->incTab[nr]->inc.\",\n      \"reasoning\": \"Historically the code copied nodes; copying isolates included content from original document lifetimes and prevents accidental frees of shared structures. It is the least invasive and aligns with previous behavior seen in history.\",\n      \"trade_offs\": \"Higher memory and CPU cost for copying, especially for large fallback trees; but minimal code changes and low risk compared to ownership refactor.\"\n    },\n    {\n      \"approach\": \"Change XInclude inclusion to transfer ownership safely: unlink nodes from their original parent without freeing namespaces/structures still referenced, or delay freeing until all references are gone (reference counting or explicit ownership flag).\",\n      \"reasoning\": \"Avoids duplicating data while preventing frees of nodes/namespaces still used by the serializer. Matches intent of moving children rather than copying.\",\n      \"trade_offs\": \"Requires more invasive changes (ownership tracking or refcounting), potential complexity and risk of memory leaks if not done carefully.\"\n    },\n    {\n      \"approach\": \"Make the serializer robust against XInclude marker nodes: skip or avoid dereferencing node->ns or other fields for XINCLUDE_START/END or for nodes known to be transient.\",\n      \"reasoning\": \"Reduces chance of dereferencing freed memory during dumping and complements ownership fixes. Historical xmlsave.c commits already special-case XInclude node types, so extending checks is consistent with recent changes.\",\n      \"trade_offs\": \"May mask underlying ownership bugs and could lead to incomplete serialization if nodes are legitimately present; not a substitute for correct ownership management.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "xmlsave.c",
+      "function_analyzed": "xmlNodeDumpOutputInternal",
+      "relevant_commits": [
+        {
+          "hash": "27119ec",
+          "message": "Fix quadratic runtime in xi:fallback processing",
+          "changes": "Replaced xmlDocCopyNodeList(fallback->children) with assigning ctxt->incTab[nr]->inc = fallback->children; moved removal of fallback children later when building inclusion.",
+          "relevance": "Introduces shared ownership of fallback children instead of copies. This change can leave later frees (xmlFreeNode) operating on nodes/namespaces still referenced by the document dump, enabling heap-use-after-free."
+        },
+        {
+          "hash": "00a86d4",
+          "message": "Don't add formatting newlines to XInclude nodes",
+          "changes": "Changed xmlNodeDumpOutputInternal/xmlDocContentDumpOutput to skip adding formatting newlines for XML_XINCLUDE_START/END node types.",
+          "relevance": "Alters dumping behavior for XInclude nodes and highlights special-casing of XInclude node types in the serializer; indicates interaction surface between XInclude processing and document dumping."
+        },
+        {
+          "hash": "7b2e517",
+          "message": "Fix *NodeDumpOutput functions",
+          "changes": "Adjusted end-tag output to only print for element nodes and reorganized formatting logic in xmlNodeDumpOutputInternal.",
+          "relevance": "Modifies how end tags and formatting are emitted; combined with XInclude special-casing this affects when and how nodes (and their namespaces) are accessed during serialization."
+        },
+        {
+          "hash": "1a360c1",
+          "message": "More *NodeDumpOutput fixes",
+          "changes": "Restricted several leaving-node operations to XML_ELEMENT_NODE and moved level/indent updates inside element checks.",
+          "relevance": "Further refines dumping logic to operate only on element nodes; emphasizes that non-element XInclude marker nodes are treated differently which can mask/trigger use-after-free if node lifetimes are mishandled."
+        }
+      ],
+      "vulnerability_origin": "A change in xinclude.c replaced copying fallback children with reusing fallback->children (shared pointers). That introduced shared ownership of node/namespace structures; later xmlXIncludeIncludeNode frees/unlinks nodes/namespaces while the serializer (xmlNodeDumpOutputInternal) still expects them, causing heap-use-after-free.",
+      "fix_hints": "Restore independent copies for included fallback content or establish clear ownership semantics (no free while serializer can reach nodes). Ensure XInclude processing does not free namespaces/nodes that may be referenced by the document dump; alternatively, adjust serializer to avoid accessing XInclude-related nodes that might be transient.",
+      "fix_suggestions": [
+        {
+          "approach": "Restore copying of included/fallback node lists (use xmlDocCopyNodeList or xmlXIncludeCopyNodeList) when setting ctxt->incTab[nr]->inc.",
+          "reasoning": "Historically the code copied nodes; copying isolates included content from original document lifetimes and prevents accidental frees of shared structures. It is the least invasive and aligns with previous behavior seen in history.",
+          "trade_offs": "Higher memory and CPU cost for copying, especially for large fallback trees; but minimal code changes and low risk compared to ownership refactor."
+        },
+        {
+          "approach": "Change XInclude inclusion to transfer ownership safely: unlink nodes from their original parent without freeing namespaces/structures still referenced, or delay freeing until all references are gone (reference counting or explicit ownership flag).",
+          "reasoning": "Avoids duplicating data while preventing frees of nodes/namespaces still used by the serializer. Matches intent of moving children rather than copying.",
+          "trade_offs": "Requires more invasive changes (ownership tracking or refcounting), potential complexity and risk of memory leaks if not done carefully."
+        },
+        {
+          "approach": "Make the serializer robust against XInclude marker nodes: skip or avoid dereferencing node->ns or other fields for XINCLUDE_START/END or for nodes known to be transient.",
+          "reasoning": "Reduces chance of dereferencing freed memory during dumping and complements ownership fixes. Historical xmlsave.c commits already special-case XInclude node types, so extending checks is consistent with recent changes.",
+          "trade_offs": "May mask underlying ownership bugs and could lead to incomplete serialization if nodes are legitimately present; not a substitute for correct ownership management."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 27739,
+      "output_tokens": 3475
+    },
+    "timing": {
+      "start_time": 1769055324.0865679,
+      "end_time": 1769055562.4908135,
+      "duration": 238.4042456150055
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in xmlNodeDumpOutputInternal (xmlsave.c): during XInclude processing (xmlXIncludeIncludeNode in xinclude.c) namespace/node structures are freed (via xmlFreeNs/xmlFreeNode) while they are still reachable and later accessed by document-dumping functions (xmlDocContentDumpOutput / xmlDocDumpFormatMemoryEnc",
+      "total_steps": 3,
+      "total_duration": 238.4042456150055,
+      "total_input_tokens": 27739,
+      "total_output_tokens": 3475,
+      "total_cost": 0.004350375,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"A past change started reusing fallback->children directly as the included node list (shared ownership) instead of making an independent copy. Later XInclude processing frees/unlinks nodes/namespaces while the serializer (xmlsave.c) still references them, causing a heap-use-after-free.\",\n  \"fix_approach\": \"Made a minimal, local fix: when handling XInclude fallback content we now copy the fallback children into the inclusion table entry using xmlXIncludeCopyNodeList so the included content has independent ownership. This prevents later frees from invalidating memory the serializer may access.\",\n  \"files_modified\": [\"/src/libxml2/xinclude.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "A past change started reusing fallback->children directly as the included node list (shared ownership) instead of making an independent copy. Later XInclude processing frees/unlinks nodes/namespaces while the serializer (xmlsave.c) still references them, causing a heap-use-after-free.",
+      "fix_approach": "Made a minimal, local fix: when handling XInclude fallback content we now copy the fallback children into the inclusion table entry using xmlXIncludeCopyNodeList so the included content has independent ownership. This prevents later frees from invalidating memory the serializer may access.",
+      "files_modified": [
+        "/src/libxml2/xinclude.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 210685,
+      "output_tokens": 4429
+    },
+    "timing": {
+      "start_time": 1769055562.4954774,
+      "end_time": 1769055634.8932176,
+      "duration": 72.39774012565613
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in xmlNodeDumpOutputInternal (xmlsave.c): during XInclude processing (xmlXIncludeIncludeNode in xinclude.c) namespace/node structures are freed (via xmlFreeNs/xmlFreeNode) while they are still reachable and later accessed by document-dumping functions (xmlDocContentDumpOutput / xmlDocDumpFormatMemoryEnc",
+      "total_steps": 12,
+      "total_duration": 72.39774012565613,
+      "total_input_tokens": 210685,
+      "total_output_tokens": 4429,
+      "total_cost": 0.011641425,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 301674,
+    "output_tokens": 15673
+  },
+  "timing": {
+    "total_duration": 445.6703107357025
+  }
+}

@@ -1,0 +1,200 @@
+{
+  "instance_id": "openexr.ossfuzz-42511621",
+  "final_status": "failed",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\"analysis_type\":\"memory\",\"findings\":[{\"file\":\"/src/openexr/src/lib/OpenEXRCore/unpack.c\",\"line\":1168,\"message\":\"Heap-buffer-overflow at UNPACK_SAMPLES call: reads (unaligned_load32) can read past decode->unpacked_buffer end (ASan trace shows read 4 bytes past heap allocation). CodeQL memory run produced many generic 'suspicious array access' warnings but did not list this exact path.\",\"severity\":\"error\"}],\"dataflow_summary\":\"CodeQL dataflow analysis returned no taint paths relevant to this site (no dataflow issues found).\",\"key_insight\":\"Root cause is insufficient bounds validation / incorrect buffer sizing: UNPACK_SAMPLES/unaligned_load32 performs 4-byte reads based on w and bpc without verifying that decode->unpacked_buffer has enough bytes (allocation in internal_decode_alloc_buffer may be undersized or no pre-read check is performed).\",\"fix_suggestions\":[{\"approach\":\"Validate buffer length before unpacking: compute required_bytes = w * bpc and verify remaining (decode->unpacked_buffer + allocated_size - srcbuffer) >= required_bytes (and >= 4 when reading 4-byte chunks). Return an error if insufficient.\",\"reasoning\":\"A simple pre-check prevents any out-of-bounds reads regardless of how UNPACK_SAMPLES performs reads and has minimal code change and runtime cost.\",\"trade_offs\":\"Adds a small runtime check; requires reliable knowledge of allocated buffer size (may need to propagate or store that size).\"},{\"approach\":\"Ensure allocation is large enough: change internal_decode_alloc_buffer to allocate padding (e.g., +3 bytes) or allocate exactly required_bytes for each chunk so reads cannot go out of bounds.\",\"reasoning\":\"Fixing allocator eliminates the root cause when allocation logic underestimated size or omitted padding for multi-byte reads (keeps unpacking logic unchanged).\",\"trade_offs\":\"Must audit all allocation call sites; may increase memory usage slightly; if unpack code logic is wrong this alone may mask issues rather than fix unsafe logic.\"},{\"approach\":\"Make UNPACK_SAMPLES/unaligned_load32 safe: replace direct 4-byte unaligned_load32 reads with a bounded read helper that reads bytes up to the buffer end (or uses memcpy from a verified safe area) and fails gracefully on short input.\",\"reasoning\":\"Hardens the hot-path against malformed inputs even if upstream allocation or checks are incorrect; directly prevents overreads.\",\"trade_offs\":\"May impact performance (extra branching or memcpy); requires careful implementation to avoid changing decoded semantics; more invasive change to performance-critical code.\"}],\"selected_fix\":\"Primary recommendation: add an explicit buffer-length validation before calling UNPACK_SAMPLES (pre-check required_bytes and ensure allocated buffer length is sufficient). Combine with allocator fix where feasible to ensure allocation size is correct. This balances safety and minimal code churn.\"}",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "/src/openexr/src/lib/OpenEXRCore/unpack.c",
+          "line": 1168,
+          "message": "Heap-buffer-overflow at UNPACK_SAMPLES call: reads (unaligned_load32) can read past decode->unpacked_buffer end (ASan trace shows read 4 bytes past heap allocation). CodeQL memory run produced many generic 'suspicious array access' warnings but did not list this exact path.",
+          "severity": "error"
+        }
+      ],
+      "dataflow_summary": "CodeQL dataflow analysis returned no taint paths relevant to this site (no dataflow issues found).",
+      "key_insight": "Root cause is insufficient bounds validation / incorrect buffer sizing: UNPACK_SAMPLES/unaligned_load32 performs 4-byte reads based on w and bpc without verifying that decode->unpacked_buffer has enough bytes (allocation in internal_decode_alloc_buffer may be undersized or no pre-read check is performed).",
+      "fix_suggestions": [
+        {
+          "approach": "Validate buffer length before unpacking: compute required_bytes = w * bpc and verify remaining (decode->unpacked_buffer + allocated_size - srcbuffer) >= required_bytes (and >= 4 when reading 4-byte chunks). Return an error if insufficient.",
+          "reasoning": "A simple pre-check prevents any out-of-bounds reads regardless of how UNPACK_SAMPLES performs reads and has minimal code change and runtime cost.",
+          "trade_offs": "Adds a small runtime check; requires reliable knowledge of allocated buffer size (may need to propagate or store that size)."
+        },
+        {
+          "approach": "Ensure allocation is large enough: change internal_decode_alloc_buffer to allocate padding (e.g., +3 bytes) or allocate exactly required_bytes for each chunk so reads cannot go out of bounds.",
+          "reasoning": "Fixing allocator eliminates the root cause when allocation logic underestimated size or omitted padding for multi-byte reads (keeps unpacking logic unchanged).",
+          "trade_offs": "Must audit all allocation call sites; may increase memory usage slightly; if unpack code logic is wrong this alone may mask issues rather than fix unsafe logic."
+        },
+        {
+          "approach": "Make UNPACK_SAMPLES/unaligned_load32 safe: replace direct 4-byte unaligned_load32 reads with a bounded read helper that reads bytes up to the buffer end (or uses memcpy from a verified safe area) and fails gracefully on short input.",
+          "reasoning": "Hardens the hot-path against malformed inputs even if upstream allocation or checks are incorrect; directly prevents overreads.",
+          "trade_offs": "May impact performance (extra branching or memcpy); requires careful implementation to avoid changing decoded semantics; more invasive change to performance-critical code."
+        }
+      ],
+      "selected_fix": "Primary recommendation: add an explicit buffer-length validation before calling UNPACK_SAMPLES (pre-check required_bytes and ensure allocated buffer length is sufficient). Combine with allocator fix where feasible to ensure allocation size is correct. This balances safety and minimal code churn."
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 91800,
+      "output_tokens": 9580
+    },
+    "timing": {
+      "start_time": 1769125378.2841585,
+      "end_time": 1769125538.0460534,
+      "duration": 159.76189494132996
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/openexr\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/openexr`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in generic_unpack (src/lib/OpenEXRCore/unpack.c): while unpacking/decoding image data (via exr_decoding_run / readCoreScanlinePart), generic_unpack performs an out-of-bounds read of 4 bytes past a heap-allocated buffer. This insufficient bounds checking / incorrect buffer sizing can cause crashes, memo",
+      "total_steps": 8,
+      "total_duration": 159.76189494132996,
+      "total_input_tokens": 91800,
+      "total_output_tokens": 9580,
+      "total_cost": 0.0138838,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x51a000000517\",\n    \"type\": \"heap-buffer-overflow\",\n    \"location\": \"src/lib/OpenEXRCore/unpack.c:1168\"\n  },\n  \"backtrace\": [\n    \"generic_unpack at src/lib/OpenEXRCore/unpack.c:1168\",\n    \"exr_decoding_run at src/lib/OpenEXRCore/decoding.c:681\",\n    \"internal_decode_alloc_buffer (malloc frame) at src/lib/OpenEXRCore/coding.c:276\",\n    \"readCoreScanlinePart at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1291\",\n    \"(anonymous)::checkCoreFile at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1500\",\n    \"runCoreChecks at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1615\",\n    \"Imf_3_2::checkOpenEXRFile at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1655\",\n    \"exrCheck at src/bin/exrcheck/main.cpp:84\",\n    \"main at src/bin/exrcheck/main.cpp:165\"\n  ],\n  \"memory_state\": \"ASan shows an allocated heap region of 1173 bytes at [0x51a000000080,0x51a000000515). The failing READ is 4 bytes at 0x51a000000517 (reported as 2 bytes past the 1173-byte region), so the code reads 2-3 bytes past the allocation end when attempting a 4-byte read.\",\n  \"root_cause_hint\": \"Runtime evidence indicates generic_unpack performs an unconditional 4-byte read past the end of a heap buffer allocated by internal_decode_alloc_buffer. The allocator returned a buffer smaller than the maximum read performed by the unpack routine (mismatch between required decoded size and allocated size) or generic_unpack lacks a bounds check for the final bytes of a partial block.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Fix the allocation size calculation in internal_decode_alloc_buffer / the decoder allocation path so the buffer is large enough for worst-case reads performed by generic_unpack.\",\n      \"reasoning\": \"ASan shows the buffer returned by malloc (internal_decode_alloc_buffer) is too small for an unconditional 4-byte read in generic_unpack. Correcting the size at allocation addresses the root cause rather than treating the symptom.\",\n      \"trade_offs\": \"May slightly increase memory usage for some inputs if allocation was undersized. Requires careful re-calculation to avoid over-allocation; must consider all decoding modes and edge cases (partial trailing bytes, bit packing, alignment).\"\n    },\n    {\n      \"approach\": \"Add defensive bounds checks in generic_unpack before performing multi-byte reads (e.g., verify remaining_bytes >= 4) and handle partial tail data safely.\",\n      \"reasoning\": \"Even if allocation is corrected, adding explicit checks prevents OOB reads from unexpected or malformed inputs and provides fail-fast behavior. This is defense-in-depth.\",\n      \"trade_offs\": \"Adds runtime branching and slightly more code complexity; may require defining behavior for malformed/ truncated streams (error return vs. zero-padding).\"\n    },\n    {\n      \"approach\": \"Validate decoded buffer sizes / compressed block lengths earlier when parsing file metadata and reject or sanitize malformed lengths before decoding.\",\n      \"reasoning\": \"Catching obviously-invalid size fields earlier avoids allocating incorrect buffers and prevents feeding malformed data to unpack routines. Improves robustness of input validation.\",\n      \"trade_offs\": \"Requires careful compatibility handling and may reject some marginal files; adds additional validation logic upstream.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb"
+      ],
+      "crash_info": {
+        "address": "0x51a000000517",
+        "type": "heap-buffer-overflow",
+        "location": "src/lib/OpenEXRCore/unpack.c:1168"
+      },
+      "backtrace": [
+        "generic_unpack at src/lib/OpenEXRCore/unpack.c:1168",
+        "exr_decoding_run at src/lib/OpenEXRCore/decoding.c:681",
+        "internal_decode_alloc_buffer (malloc frame) at src/lib/OpenEXRCore/coding.c:276",
+        "readCoreScanlinePart at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1291",
+        "(anonymous)::checkCoreFile at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1500",
+        "runCoreChecks at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1615",
+        "Imf_3_2::checkOpenEXRFile at src/lib/OpenEXRUtil/ImfCheckFile.cpp:1655",
+        "exrCheck at src/bin/exrcheck/main.cpp:84",
+        "main at src/bin/exrcheck/main.cpp:165"
+      ],
+      "memory_state": "ASan shows an allocated heap region of 1173 bytes at [0x51a000000080,0x51a000000515). The failing READ is 4 bytes at 0x51a000000517 (reported as 2 bytes past the 1173-byte region), so the code reads 2-3 bytes past the allocation end when attempting a 4-byte read.",
+      "root_cause_hint": "Runtime evidence indicates generic_unpack performs an unconditional 4-byte read past the end of a heap buffer allocated by internal_decode_alloc_buffer. The allocator returned a buffer smaller than the maximum read performed by the unpack routine (mismatch between required decoded size and allocated size) or generic_unpack lacks a bounds check for the final bytes of a partial block.",
+      "fix_suggestions": [
+        {
+          "approach": "Fix the allocation size calculation in internal_decode_alloc_buffer / the decoder allocation path so the buffer is large enough for worst-case reads performed by generic_unpack.",
+          "reasoning": "ASan shows the buffer returned by malloc (internal_decode_alloc_buffer) is too small for an unconditional 4-byte read in generic_unpack. Correcting the size at allocation addresses the root cause rather than treating the symptom.",
+          "trade_offs": "May slightly increase memory usage for some inputs if allocation was undersized. Requires careful re-calculation to avoid over-allocation; must consider all decoding modes and edge cases (partial trailing bytes, bit packing, alignment)."
+        },
+        {
+          "approach": "Add defensive bounds checks in generic_unpack before performing multi-byte reads (e.g., verify remaining_bytes >= 4) and handle partial tail data safely.",
+          "reasoning": "Even if allocation is corrected, adding explicit checks prevents OOB reads from unexpected or malformed inputs and provides fail-fast behavior. This is defense-in-depth.",
+          "trade_offs": "Adds runtime branching and slightly more code complexity; may require defining behavior for malformed/ truncated streams (error return vs. zero-padding)."
+        },
+        {
+          "approach": "Validate decoded buffer sizes / compressed block lengths earlier when parsing file metadata and reject or sanitize malformed lengths before decoding.",
+          "reasoning": "Catching obviously-invalid size fields earlier avoids allocating incorrect buffers and prevents feeding malformed data to unpack routines. Improves robustness of input validation.",
+          "trade_offs": "Requires careful compatibility handling and may reject some marginal files; adds additional validation logic upstream."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 18059,
+      "output_tokens": 2243
+    },
+    "timing": {
+      "start_time": 1769125538.0519953,
+      "end_time": 1769125563.2140305,
+      "duration": 25.1620352268219
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/openexr\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/openexr`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in generic_unpack (src/lib/OpenEXRCore/unpack.c): while unpacking/decoding image data (via exr_decoding_run / readCoreScanlinePart), generic_unpack performs an out-of-bounds read of 4 bytes past a heap-allocated buffer. This insufficient bounds checking / incorrect buffer sizing can cause crashes, memo",
+      "total_steps": 2,
+      "total_duration": 25.1620352268219,
+      "total_input_tokens": 18059,
+      "total_output_tokens": 2243,
+      "total_cost": 0.002887575,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"src/lib/OpenEXRCore/unpack.c\",\n  \"function_analyzed\": \"generic_unpack\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"c3f291b\",\n      \"message\": \"Refactor deep tests to separate file, fix deep chunk reads, ripmap reading (#1076)\",\n      \"changes\": \"Added optimizations for unpack, fixes for deep/pointer reads, safety check to zip, modified unpack routines (new interleave handling)\",\n      \"relevance\": \"Introduced an \"optimization for unpack\" and pointer/deep-read changes that likely affected indexing/stride logic used by generic_unpack and may have changed how buffers are read or sized.\"\n    },\n    {\n      \"hash\": \"017f056\",\n      \"message\": \"Simplify names, improve error messages, fix imath usage in Core (#1086)\",\n      \"changes\": \"Renamed chunk_block.height to chunk.height (and other name consistency changes) across unpack routines and related code paths\",\n      \"relevance\": \"Changed which height field is used by unpack loops. If semantics differ between chunk_block and chunk, this could alter loop bounds and cause out-of-bounds accesses in generic_unpack.\"\n    },\n    {\n      \"hash\": \"2a24ae7\",\n      \"message\": \"[refactor] Run clang-format over whole repo\",\n      \"changes\": \"Formatting-only changes (whitespace/reflow) including minor reformat of pointer arithmetic and line increments in unpack.c\",\n      \"relevance\": \"Unlikely to be the direct cause; however small rewrites around indexing/arithmetics were applied, so they should be reviewed for accidental logic changes.\"\n    }\n  ],\n  \"vulnerability_origin\": \"Most likely introduced by the unpack \"optimization\" and pointer/deep-read code changes in commit c3f291b, possibly made worse or exposed by the subsequent name/field change (017f056) that altered which height/stride field is used for loop bounds. Formatting commit 2a24ae7 is unlikely to be causal.\",\n  \"fix_hints\": \"From history: verify which height/stride fields (chunk vs chunk_block) are correct for generic_unpack; audit the optimization code paths that changed indexing; add explicit bounds checks before reads and ensure buffer allocation sizes match worst-case byte reads. Treat user_line_stride consistently (bytes vs pixels).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add explicit bounds checks in generic_unpack before each multi-byte read and before advancing pointers; return a decompression error instead of reading past end.\",\n      \"reasoning\": \"Defensive, minimal change that prevents crashes and information disclosure; aligns with safety checks added elsewhere in repo (history shows safety checks added to zip).\",\n      \"trade_offs\": \"Minor runtime cost for checks; may mask underlying allocation/semantics bugs if not combined with stride/size fixes.\"\n    },\n    {\n      \"approach\": \"Correct stride/height/units usage: ensure generic_unpack uses the correct chunk.height and that user_line_stride is interpreted consistently (bytes vs elements). Update allocation sizing (internal_decode_alloc_buffer) to allocate sufficient bytes for worst-case reads including any padding used by optimized paths.\",\n      \"reasoning\": \"Addresses root cause if the bug stems from a semantic rename/mismatch introduced in history (017f056) or from the unpack optimization (c3f291b) miscomputing offsets.\",\n      \"trade_offs\": \"Requires careful review and broader changes; may affect many code paths and require re-running tests.\"\n    },\n    {\n      \"approach\": \"Limit per-pixel loops by computed available bytes (compute max pixels = buffer_size / bytes_per_pixel) and use memcpy/memmove with min(len, available) where appropriate.\",\n      \"reasoning\": \"Safe-read strategy that prevents OOB reads even if allocation is smaller than expected. Useful as an immediate mitigation.\",\n      \"trade_offs\": \"Might silently truncate data instead of surfacing upstream allocation/configuration problems; could change behavior for corrupted inputs.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"src/lib/OpenEXRCore/unpack.c\",\n  \"function_analyzed\": \"generic_unpack\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"c3f291b\",\n      \"message\": \"Refactor deep tests to separate file, fix deep chunk reads, ripmap reading (#1076)\",\n      \"changes\": \"Added optimizations for unpack, fixes for deep/pointer reads, safety check to zip, modified unpack routines (new interleave handling)\",\n      \"relevance\": \"Introduced an \"optimization for unpack\" and pointer/deep-read changes that likely affected indexing/stride logic used by generic_unpack and may have changed how buffers are read or sized.\"\n    },\n    {\n      \"hash\": \"017f056\",\n      \"message\": \"Simplify names, improve error messages, fix imath usage in Core (#1086)\",\n      \"changes\": \"Renamed chunk_block.height to chunk.height (and other name consistency changes) across unpack routines and related code paths\",\n      \"relevance\": \"Changed which height field is used by unpack loops. If semantics differ between chunk_block and chunk, this could alter loop bounds and cause out-of-bounds accesses in generic_unpack.\"\n    },\n    {\n      \"hash\": \"2a24ae7\",\n      \"message\": \"[refactor] Run clang-format over whole repo\",\n      \"changes\": \"Formatting-only changes (whitespace/reflow) including minor reformat of pointer arithmetic and line increments in unpack.c\",\n      \"relevance\": \"Unlikely to be the direct cause; however small rewrites around indexing/arithmetics were applied, so they should be reviewed for accidental logic changes.\"\n    }\n  ],\n  \"vulnerability_origin\": \"Most likely introduced by the unpack \"optimization\" and pointer/deep-read code changes in commit c3f291b, possibly made worse or exposed by the subsequent name/field change (017f056) that altered which height/stride field is used for loop bounds. Formatting commit 2a24ae7 is unlikely to be causal.\",\n  \"fix_hints\": \"From history: verify which height/stride fields (chunk vs chunk_block) are correct for generic_unpack; audit the optimization code paths that changed indexing; add explicit bounds checks before reads and ensure buffer allocation sizes match worst-case byte reads. Treat user_line_stride consistently (bytes vs pixels).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add explicit bounds checks in generic_unpack before each multi-byte read and before advancing pointers; return a decompression error instead of reading past end.\",\n      \"reasoning\": \"Defensive, minimal change that prevents crashes and information disclosure; aligns with safety checks added elsewhere in repo (history shows safety checks added to zip).\",\n      \"trade_offs\": \"Minor runtime cost for checks; may mask underlying allocation/semantics bugs if not combined with stride/size fixes.\"\n    },\n    {\n      \"approach\": \"Correct stride/height/units usage: ensure generic_unpack uses the correct chunk.height and that user_line_stride is interpreted consistently (bytes vs elements). Update allocation sizing (internal_decode_alloc_buffer) to allocate sufficient bytes for worst-case reads including any padding used by optimized paths.\",\n      \"reasoning\": \"Addresses root cause if the bug stems from a semantic rename/mismatch introduced in history (017f056) or from the unpack optimization (c3f291b) miscomputing offsets.\",\n      \"trade_offs\": \"Requires careful review and broader changes; may affect many code paths and require re-running tests.\"\n    },\n    {\n      \"approach\": \"Limit per-pixel loops by computed available bytes (compute max pixels = buffer_size / bytes_per_pixel) and use memcpy/memmove with min(len, available) where appropriate.\",\n      \"reasoning\": \"Safe-read strategy that prevents OOB reads even if allocation is smaller than expected. Useful as an immediate mitigation.\",\n      \"trade_offs\": \"Might silently truncate data instead of surfacing upstream allocation/configuration problems; could change behavior for corrupted inputs.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 17522,
+      "output_tokens": 2183
+    },
+    "timing": {
+      "start_time": 1769125563.218316,
+      "end_time": 1769125596.6245658,
+      "duration": 33.40624976158142
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/openexr\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/openexr`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in generic_unpack (src/lib/OpenEXRCore/unpack.c): while unpacking/decoding image data (via exr_decoding_run / readCoreScanlinePart), generic_unpack performs an out-of-bounds read of 4 bytes past a heap-allocated buffer. This insufficient bounds checking / incorrect buffer sizing can cause crashes, memo",
+      "total_steps": 2,
+      "total_duration": 33.40624976158142,
+      "total_input_tokens": 17522,
+      "total_output_tokens": 2183,
+      "total_cost": 0.00277485,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"generic_unpack performed unconditional multi-byte reads (unaligned_load32/unaligned_load16) into user-supplied unpacked_buffer without verifying that the buffer had enough bytes remaining. The buffer allocated by internal_decode_alloc_buffer could be smaller than the final unaligned multi-byte read, causing a 4-byte read past the heap allocation (heap-buffer-overflow).\",\n  \"fix_approach\": \"Added defensive bounds checks immediately before calls to UNPACK_SAMPLES in unpack.c. The checks compute the current offset into decode->unpacked_buffer, compute the bytes needed for the upcoming unpack (w * bpc or samps * bpc) and return EXR_ERR_CORRUPT_CHUNK when the remaining buffer is too small. This is a minimal, localized change that prevents out-of-bounds reads regardless of allocator correctness and avoids changing hot-path unpack logic.\",\n  \"files_modified\": [\"src/lib/OpenEXRCore/unpack.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": false,\n    \"exit_code\": 1,\n    \"asan_output\": \"secb repro returned exit code 1 with message 'file /testcase/poc bad'. No AddressSanitizer crash output was produced in the run logs available to the patcher, but repro did not exit 0 so full repro-success criteria not met.\"\n  },\n  \"confidence\": \"medium\"\n}",
+    "parsed_output": {
+      "root_cause": "generic_unpack performed unconditional multi-byte reads (unaligned_load32/unaligned_load16) into user-supplied unpacked_buffer without verifying that the buffer had enough bytes remaining. The buffer allocated by internal_decode_alloc_buffer could be smaller than the final unaligned multi-byte read, causing a 4-byte read past the heap allocation (heap-buffer-overflow).",
+      "fix_approach": "Added defensive bounds checks immediately before calls to UNPACK_SAMPLES in unpack.c. The checks compute the current offset into decode->unpacked_buffer, compute the bytes needed for the upcoming unpack (w * bpc or samps * bpc) and return EXR_ERR_CORRUPT_CHUNK when the remaining buffer is too small. This is a minimal, localized change that prevents out-of-bounds reads regardless of allocator correctness and avoids changing hot-path unpack logic.",
+      "files_modified": [
+        "src/lib/OpenEXRCore/unpack.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": false,
+        "exit_code": 1,
+        "asan_output": "secb repro returned exit code 1 with message 'file /testcase/poc bad'. No AddressSanitizer crash output was produced in the run logs available to the patcher, but repro did not exit 0 so full repro-success criteria not met."
+      },
+      "confidence": "medium"
+    },
+    "success": false,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 989440,
+      "output_tokens": 11622
+    },
+    "timing": {
+      "start_time": 1769125596.6298013,
+      "end_time": 1769125752.2586522,
+      "duration": 155.62885093688965
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/openexr\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/openexr`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in generic_unpack (src/lib/OpenEXRCore/unpack.c): while unpacking/decoding image data (via exr_decoding_run / readCoreScanlinePart), generic_unpack performs an out-of-bounds read of 4 bytes past a heap-allocated buffer. This insufficient bounds checking / incorrect buffer sizing can cause crashes, memo",
+      "total_steps": 32,
+      "total_duration": 155.62885093688965,
+      "total_input_tokens": 989440,
+      "total_output_tokens": 11622,
+      "total_cost": 0.038894000000000005,
+      "final_state": "failed"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 1116821,
+    "output_tokens": 25628
+  },
+  "timing": {
+    "total_duration": 373.99228525161743
+  }
+}

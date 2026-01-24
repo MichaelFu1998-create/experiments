@@ -1,0 +1,20 @@
+diff --git a/src/p_mach.cpp b/src/p_mach.cpp
+index a97d2aff..cfe3893c 100644
+--- a/src/p_mach.cpp
++++ b/src/p_mach.cpp
+@@ -1679,6 +1679,15 @@ tribool PackMachBase<T>::canUnpack()
+     for (unsigned j= 0; j < ncmds;
+             ptr = (Mach_command const *)(ptr->cmdsize + (char const *)ptr), ++j) {
+         unsigned const cmd = ptr->cmd;
++        { size_t offset = (char const *)ptr - (char const *)rawmseg;
++          if (offset + sizeof(Mach_command) > (size_t)mhdri.sizeofcmds) {
++              opt->info_mode += 1;
++              infoWarning("bad Mach_command header[%u]{x%zx,+0x%x}: sizeofcmds=0x%x",
++                          j, (sizeof(mhdri) + offset), headway, (unsigned)mhdri.sizeofcmds);
++              opt->info_mode -= 1;
++              throwCantUnpack("file corrupted");
++          }
++        }
+         unsigned const cmdsize = ptr->cmdsize;
+         if (is_bad_linker_command(cmd, cmdsize, headway, lc_seg, sizeof(Addr))) {
+                 opt->info_mode += 1;

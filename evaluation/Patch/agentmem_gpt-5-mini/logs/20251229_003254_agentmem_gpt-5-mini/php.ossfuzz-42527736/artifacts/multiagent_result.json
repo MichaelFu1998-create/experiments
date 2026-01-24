@@ -1,0 +1,176 @@
+{
+  "instance_id": "php.ossfuzz-42527736",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 2150,\n      \"message\": \"memcpy in php_fgetcsv receives a computed length that can be negative (ASAN negative-size-param).\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 1998,\n      \"message\": \"Earlier buffer/length computation in php_fgetcsv that contributes to the copy length calculation.\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 2105,\n      \"message\": \"memcpy usage in php_fgetcsv near field-parsing logic; length derived from subtraction of parsed offsets.\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 2180,\n      \"message\": \"Another memcpy in php_fgetcsv; multiple copy sites around CSV parsing\u2014ensure all lengths validated.\",\n      \"severity\": \"warning\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"php_fgetcsv computes a copy length using signed arithmetic (differences of indices/offsets) without validating the result; a negative value can be passed to memcpy, causing ASAN negative-size-param and potential heap corruption.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate copy length before calling memcpy (ensure length >= 0 and within source/destination bounds).\",\n      \"reasoning\": \"Small, local change that prevents negative sizes reaching memcpy and rejects or safely handles malformed CSV fields.\",\n      \"trade_offs\": \"Changes behavior for malformed inputs (will reject or truncate instead of attempting copy); minimal performance cost.\">\n    },\n    {\n      \"approach\": \"Use unsigned size_t for length calculations combined with explicit underflow/overflow checks (check operands before subtraction).\",\n      \"reasoning\": \"Fixes root cause of signed/unsigned arithmetic and makes intent explicit; avoids accidental negative-to-large-unsigned conversions.\",\n      \"trade_offs\": \"Requires careful audit of arithmetic sites; slightly more invasive refactor.\">\n    },\n    {\n      \"approach\": \"Refactor CSV parsing to use bounds-checked helpers and safe buffer allocation (use zend_string APIs and explicit capacity checks) so copies cannot overflow.\",\n      \"reasoning\": \"More robust long-term solution that centralizes safety and reduces ad-hoc pointer/length math.\",\n      \"trade_offs\": \"Larger refactor, more review and testing required; higher initial development cost but stronger safety guarantees.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 2150,\n      \"message\": \"memcpy in php_fgetcsv receives a computed length that can be negative (ASAN negative-size-param).\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 1998,\n      \"message\": \"Earlier buffer/length computation in php_fgetcsv that contributes to the copy length calculation.\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 2105,\n      \"message\": \"memcpy usage in php_fgetcsv near field-parsing logic; length derived from subtraction of parsed offsets.\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"ext/standard/file.c\",\n      \"line\": 2180,\n      \"message\": \"Another memcpy in php_fgetcsv; multiple copy sites around CSV parsing\u2014ensure all lengths validated.\",\n      \"severity\": \"warning\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"php_fgetcsv computes a copy length using signed arithmetic (differences of indices/offsets) without validating the result; a negative value can be passed to memcpy, causing ASAN negative-size-param and potential heap corruption.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate copy length before calling memcpy (ensure length >= 0 and within source/destination bounds).\",\n      \"reasoning\": \"Small, local change that prevents negative sizes reaching memcpy and rejects or safely handles malformed CSV fields.\",\n      \"trade_offs\": \"Changes behavior for malformed inputs (will reject or truncate instead of attempting copy); minimal performance cost.\">\n    },\n    {\n      \"approach\": \"Use unsigned size_t for length calculations combined with explicit underflow/overflow checks (check operands before subtraction).\",\n      \"reasoning\": \"Fixes root cause of signed/unsigned arithmetic and makes intent explicit; avoids accidental negative-to-large-unsigned conversions.\",\n      \"trade_offs\": \"Requires careful audit of arithmetic sites; slightly more invasive refactor.\">\n    },\n    {\n      \"approach\": \"Refactor CSV parsing to use bounds-checked helpers and safe buffer allocation (use zend_string APIs and explicit capacity checks) so copies cannot overflow.\",\n      \"reasoning\": \"More robust long-term solution that centralizes safety and reduces ad-hoc pointer/length math.\",\n      \"trade_offs\": \"Larger refactor, more review and testing required; higher initial development cost but stronger safety guarantees.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 58676,
+      "output_tokens": 4827
+    },
+    "timing": {
+      "start_time": 1769166299.3414354,
+      "end_time": 1769166444.7965176,
+      "duration": 145.45508217811584
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nphp_fgetcsv in ext/standard/file.c (invoked via zif_str_getcsv) can compute an incorrect copy length and pass a negative size to memcpy (ASAN negative-size-param). This leads to an invalid memcpy call that can cause memory corruption/heap overflow and crashes when parsing specially crafted CSV input, potentially enabling d",
+      "total_steps": 6,
+      "total_duration": 145.45508217811584,
+      "total_input_tokens": 58676,
+      "total_output_tokens": 4827,
+      "total_cost": 0.0071503,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x503000000a4a\",\n    \"type\": \"negative-size-param (invalid memcpy size)\",\n    \"location\": \"ext/standard/file.c:2150 (php_fgetcsv)\"\n  },\n  \"backtrace\": [\n    \"#0 __asan_memcpy (compiler-rt)\",\n    \"#1 php_fgetcsv ext/standard/file.c:2150\",\n    \"#2 zif_str_getcsv ext/standard/string.c:5145\",\n    \"#3 ZEND_DO_ICALL_SPEC_RETVAL_UNUSED_HANDLER (Zend VM)\",\n    \"#4 execute_ex (Zend VM)\",\n    \"#5 zend_execute (Zend VM)\",\n    \"#6 zend_execute_scripts zend.c:1876\",\n    \"#7 php_execute_script main.c:2492\",\n    \"#8 do_cli sapi/cli/php_cli.c:966\",\n    \"#9 main sapi/cli/php_cli.c:1340\",\n    \"#10 __libc_start_main\"\n  ],\n  \"memory_state\": \"Sanitizer shows crash address 0x503000000a4a is 26 bytes inside a 32-byte allocation [0x503000000a30,0x503000000a50). The failing memcpy was called with size=-1 (negative-size-param), indicating an incorrect computed length (underflow/negative) was passed to memcpy, which will be converted to a very large size_t leading to out-of-bounds access.\",\n  \"root_cause_hint\": \"Runtime evidence (ASAN negative-size-param at php_fgetcsv) indicates php_fgetcsv computed a copy length that became -1 and passed it to memcpy. Likely causes: signed integer became negative (e.g. -1 used to signal 'not found' or subtraction underflow), improper signed/unsigned mixing when computing field length, or missing bounds checks before memcpy in CSV parsing logic.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate the computed copy length before calling memcpy (explicit non-negative and within-source-buffer checks).\",\n      \"reasoning\": \"A simple guard prevents negative or excessively large sizes from reaching memcpy; minimal invasive change and directly addresses the observed negative-size-param.\",\n      \"trade_offs\": \"Negligible performance impact; must ensure correct CSV parsing semantics (e.g., empty fields) are preserved and add unit tests to cover edge cases.\"\n    },\n    {\n      \"approach\": \"Use unsigned length types (size_t) for length computations and ensure arithmetic is done in unsigned domain with explicit underflow/overflow checks.\",\n      \"reasoning\": \"Using size_t consistently prevents accidental negative signed values; explicit checks catch underflow before memcpy.\",\n      \"trade_offs\": \"Requires careful audit of surrounding code to avoid subtle behavior changes where negative values were used as sentinel; more invasive refactor.\"\n    },\n    {\n      \"approach\": \"Rewrite the CSV field-copy logic to use safer APIs (e.g., bounded copies with memmove/memcpy only after computing a clamped length) and add assertions/tests for delimiter boundary conditions.\",\n      \"reasoning\": \"A more robust implementation removes brittle arithmetic and makes edge cases explicit, preventing similar bugs in future.\",\n      \"trade_offs\": \"Larger code change and testing burden; higher development cost but improves long-term maintainability.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan"
+      ],
+      "crash_info": {
+        "address": "0x503000000a4a",
+        "type": "negative-size-param (invalid memcpy size)",
+        "location": "ext/standard/file.c:2150 (php_fgetcsv)"
+      },
+      "backtrace": [
+        "#0 __asan_memcpy (compiler-rt)",
+        "#1 php_fgetcsv ext/standard/file.c:2150",
+        "#2 zif_str_getcsv ext/standard/string.c:5145",
+        "#3 ZEND_DO_ICALL_SPEC_RETVAL_UNUSED_HANDLER (Zend VM)",
+        "#4 execute_ex (Zend VM)",
+        "#5 zend_execute (Zend VM)",
+        "#6 zend_execute_scripts zend.c:1876",
+        "#7 php_execute_script main.c:2492",
+        "#8 do_cli sapi/cli/php_cli.c:966",
+        "#9 main sapi/cli/php_cli.c:1340",
+        "#10 __libc_start_main"
+      ],
+      "memory_state": "Sanitizer shows crash address 0x503000000a4a is 26 bytes inside a 32-byte allocation [0x503000000a30,0x503000000a50). The failing memcpy was called with size=-1 (negative-size-param), indicating an incorrect computed length (underflow/negative) was passed to memcpy, which will be converted to a very large size_t leading to out-of-bounds access.",
+      "root_cause_hint": "Runtime evidence (ASAN negative-size-param at php_fgetcsv) indicates php_fgetcsv computed a copy length that became -1 and passed it to memcpy. Likely causes: signed integer became negative (e.g. -1 used to signal 'not found' or subtraction underflow), improper signed/unsigned mixing when computing field length, or missing bounds checks before memcpy in CSV parsing logic.",
+      "fix_suggestions": [
+        {
+          "approach": "Validate the computed copy length before calling memcpy (explicit non-negative and within-source-buffer checks).",
+          "reasoning": "A simple guard prevents negative or excessively large sizes from reaching memcpy; minimal invasive change and directly addresses the observed negative-size-param.",
+          "trade_offs": "Negligible performance impact; must ensure correct CSV parsing semantics (e.g., empty fields) are preserved and add unit tests to cover edge cases."
+        },
+        {
+          "approach": "Use unsigned length types (size_t) for length computations and ensure arithmetic is done in unsigned domain with explicit underflow/overflow checks.",
+          "reasoning": "Using size_t consistently prevents accidental negative signed values; explicit checks catch underflow before memcpy.",
+          "trade_offs": "Requires careful audit of surrounding code to avoid subtle behavior changes where negative values were used as sentinel; more invasive refactor."
+        },
+        {
+          "approach": "Rewrite the CSV field-copy logic to use safer APIs (e.g., bounded copies with memmove/memcpy only after computing a clamped length) and add assertions/tests for delimiter boundary conditions.",
+          "reasoning": "A more robust implementation removes brittle arithmetic and makes edge cases explicit, preventing similar bugs in future.",
+          "trade_offs": "Larger code change and testing burden; higher development cost but improves long-term maintainability."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 26143,
+      "output_tokens": 2758
+    },
+    "timing": {
+      "start_time": 1769166444.80245,
+      "end_time": 1769166682.648542,
+      "duration": 237.84609198570251
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nphp_fgetcsv in ext/standard/file.c (invoked via zif_str_getcsv) can compute an incorrect copy length and pass a negative size to memcpy (ASAN negative-size-param). This leads to an invalid memcpy call that can cause memory corruption/heap overflow and crashes when parsing specially crafted CSV input, potentially enabling d",
+      "total_steps": 3,
+      "total_duration": 237.84609198570251,
+      "total_input_tokens": 26143,
+      "total_output_tokens": 2758,
+      "total_cost": 0.003664275,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"ext/standard/file.c\",\n  \"function_analyzed\": \"php_fgetcsv\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"076fbd3\",\n      \"message\": \"Minor fgetcsv cleanup\",\n      \"changes\": \"Reduced variable scopes; changed how line_end/limit and line_end_len are computed; tptr initialization moved to inner scope.\",\n      \"relevance\": \"Refactors changed pointer/length computations (line_end/limit/tptr), which affects later length arithmetic used with memcpy.\">\n    },\n    {\n      \"hash\": \"52e7e0f\",\n      \"message\": \"Fix bug #66588: SplFileObject::fgetcsv incorrectly returns a row on premature EOF\",\n      \"changes\": \"Removed a block that destroyed the array and returned FALSE on a particular overflow-like condition; replaced with goto quit_loop_2 (altering control flow).\",\n      \"relevance\": \"This removed an explicit check/early-return that would have prevented assignment when temp_len exceeded available data; its removal can allow code paths that compute invalid lengths.\">\n    },\n    {\n      \"hash\": \"4ccf0b0\",\n      \"message\": \"Make php_fgetcsv() return a HashTale instead of in-out zval param (#8936)\",\n      \"changes\": \"API refactor: changed php_fgetcsv signature to return HashTable* and reorganized return/error handling for empty lines.\",\n      \"relevance\": \"Major refactor changed control flow and error handling semantics; such changes often expose edge cases in pointer/length logic.\">\n    },\n    {\n      \"hash\": \"57029ce\",\n      \"message\": \"Fix buffer-overflow in php_fgetcsv() with \\0 delimiter and enclosure\",\n      \"changes\": \"Added a check to ensure tmp < limit before comparing *tmp to enclosure (prevents reading past limit when delimiter/enclosure is '\\0').\",\n      \"relevance\": \"Shows a previous off-by-one/limit-check issue in parsing logic; indicates pointer-limit checks were a known problem area.\">\n    },\n    {\n      \"hash\": \"aff46d7\",\n      \"message\": \"Fix GH-11982: str_getcsv returns null byte for unterminated quoted string\",\n      \"changes\": \"Added handling when stream==NULL to adjust bptr (decrement if bptr > limit) before exiting loops to avoid copying a terminating \\0, and added related guards.\",\n      \"relevance\": \"Addresses an under-terminated-quote edge case and adjusts bptr vs limit handling \u2014 directly relevant to negative-size/copy-length issues when stream is NULL.\">\n    }\n  ],\n  \"vulnerability_origin\": \"A combination of refactors (076fbd3, 4ccf0b0) and removal of an earlier protective check (52e7e0f) changed pointer/length computations and control flow. This allowed bptr/limit arithmetic to become invalid in some edge cases (e.g. stream==NULL, unterminated quotes), producing a negative size passed to memcpy.\",\n  \"fix_hints\": \"Reintroduce explicit bounds checks before computing and passing lengths to memcpy; ensure arithmetic uses unsigned size_t and check for underflow when computing (limit - ptr) results; carefully handle stream==NULL and unterminated enclosure cases as done in later patches.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate copy length immediately before memcpy\",\n      \"reasoning\": \"A simple check (if (copy_len == 0) skip; if (copy_len > available) handle error/goto) stops negative/underflow sizes reaching memcpy and mirrors the earlier protective behaviour removed in history.\",\n      \"trade_offs\": \"Minimal performance cost; must choose policy for truncated/invalid CSV (reject row vs salvage). Ensure backward compatibility with previous behaviour where intended.\"\n    },\n    {\n      \"approach\": \"Enforce pointer bounds (ensure bptr <= limit) and fix arithmetic to avoid signed underflow\",\n      \"reasoning\": \"History shows many fixes centered on bptr/limit checks. Making these invariants explicit (and using size_t for lengths) prevents negative-size computations upstream.\",\n      \"trade_offs\": \"Requires auditing multiple code paths that adjust bptr/limit; may change handling of certain edge cases (e.g. unterminated quoted fields) unless care is taken to preserve semantics.\"\n    },\n    {\n      \"approach\": \"Restore an early-return or safe-goto on detected overflow/invalid state (like the removed block) and add comprehensive unit/fuzz tests for edge CSV inputs\",\n      \"reasoning\": \"The removed check in 52e7e0f likely prevented unsafe states; restoring an explicit safety net avoids subtle arithmetic bugs. Adding regression tests catches future regressions.\",\n      \"trade_offs\": \"Might reintroduce behavior changes fixed by later commits; tests must be aligned with desired API semantics (e.g. how to handle EOF/unterminated quotes).\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"ext/standard/file.c\",\n  \"function_analyzed\": \"php_fgetcsv\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"076fbd3\",\n      \"message\": \"Minor fgetcsv cleanup\",\n      \"changes\": \"Reduced variable scopes; changed how line_end/limit and line_end_len are computed; tptr initialization moved to inner scope.\",\n      \"relevance\": \"Refactors changed pointer/length computations (line_end/limit/tptr), which affects later length arithmetic used with memcpy.\">\n    },\n    {\n      \"hash\": \"52e7e0f\",\n      \"message\": \"Fix bug #66588: SplFileObject::fgetcsv incorrectly returns a row on premature EOF\",\n      \"changes\": \"Removed a block that destroyed the array and returned FALSE on a particular overflow-like condition; replaced with goto quit_loop_2 (altering control flow).\",\n      \"relevance\": \"This removed an explicit check/early-return that would have prevented assignment when temp_len exceeded available data; its removal can allow code paths that compute invalid lengths.\">\n    },\n    {\n      \"hash\": \"4ccf0b0\",\n      \"message\": \"Make php_fgetcsv() return a HashTale instead of in-out zval param (#8936)\",\n      \"changes\": \"API refactor: changed php_fgetcsv signature to return HashTable* and reorganized return/error handling for empty lines.\",\n      \"relevance\": \"Major refactor changed control flow and error handling semantics; such changes often expose edge cases in pointer/length logic.\">\n    },\n    {\n      \"hash\": \"57029ce\",\n      \"message\": \"Fix buffer-overflow in php_fgetcsv() with \\0 delimiter and enclosure\",\n      \"changes\": \"Added a check to ensure tmp < limit before comparing *tmp to enclosure (prevents reading past limit when delimiter/enclosure is '\\0').\",\n      \"relevance\": \"Shows a previous off-by-one/limit-check issue in parsing logic; indicates pointer-limit checks were a known problem area.\">\n    },\n    {\n      \"hash\": \"aff46d7\",\n      \"message\": \"Fix GH-11982: str_getcsv returns null byte for unterminated quoted string\",\n      \"changes\": \"Added handling when stream==NULL to adjust bptr (decrement if bptr > limit) before exiting loops to avoid copying a terminating \\0, and added related guards.\",\n      \"relevance\": \"Addresses an under-terminated-quote edge case and adjusts bptr vs limit handling \u2014 directly relevant to negative-size/copy-length issues when stream is NULL.\">\n    }\n  ],\n  \"vulnerability_origin\": \"A combination of refactors (076fbd3, 4ccf0b0) and removal of an earlier protective check (52e7e0f) changed pointer/length computations and control flow. This allowed bptr/limit arithmetic to become invalid in some edge cases (e.g. stream==NULL, unterminated quotes), producing a negative size passed to memcpy.\",\n  \"fix_hints\": \"Reintroduce explicit bounds checks before computing and passing lengths to memcpy; ensure arithmetic uses unsigned size_t and check for underflow when computing (limit - ptr) results; carefully handle stream==NULL and unterminated enclosure cases as done in later patches.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate copy length immediately before memcpy\",\n      \"reasoning\": \"A simple check (if (copy_len == 0) skip; if (copy_len > available) handle error/goto) stops negative/underflow sizes reaching memcpy and mirrors the earlier protective behaviour removed in history.\",\n      \"trade_offs\": \"Minimal performance cost; must choose policy for truncated/invalid CSV (reject row vs salvage). Ensure backward compatibility with previous behaviour where intended.\"\n    },\n    {\n      \"approach\": \"Enforce pointer bounds (ensure bptr <= limit) and fix arithmetic to avoid signed underflow\",\n      \"reasoning\": \"History shows many fixes centered on bptr/limit checks. Making these invariants explicit (and using size_t for lengths) prevents negative-size computations upstream.\",\n      \"trade_offs\": \"Requires auditing multiple code paths that adjust bptr/limit; may change handling of certain edge cases (e.g. unterminated quoted fields) unless care is taken to preserve semantics.\"\n    },\n    {\n      \"approach\": \"Restore an early-return or safe-goto on detected overflow/invalid state (like the removed block) and add comprehensive unit/fuzz tests for edge CSV inputs\",\n      \"reasoning\": \"The removed check in 52e7e0f likely prevented unsafe states; restoring an explicit safety net avoids subtle arithmetic bugs. Adding regression tests catches future regressions.\",\n      \"trade_offs\": \"Might reintroduce behavior changes fixed by later commits; tests must be aligned with desired API semantics (e.g. how to handle EOF/unterminated quotes).\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 16085,
+      "output_tokens": 2329
+    },
+    "timing": {
+      "start_time": 1769166682.6536098,
+      "end_time": 1769167652.0252566,
+      "duration": 969.3716468811035
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nphp_fgetcsv in ext/standard/file.c (invoked via zif_str_getcsv) can compute an incorrect copy length and pass a negative size to memcpy (ASAN negative-size-param). This leads to an invalid memcpy call that can cause memory corruption/heap overflow and crashes when parsing specially crafted CSV input, potentially enabling d",
+      "total_steps": 2,
+      "total_duration": 969.3716468811035,
+      "total_input_tokens": 16085,
+      "total_output_tokens": 2329,
+      "total_cost": 0.002957225,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"php_fgetcsv computed field copy lengths using signed pointer differences without validating the result; in certain edge cases (unterminated quoted fields, stream==NULL, or pointer arithmetic near limits) the computed difference can be negative and get implicitly converted to a very large size_t when passed to memcpy, producing an ASan negative-size-param and potential heap corruption.\",\n  \"fix_approach\": \"I made minimal, local changes in ext/standard/file.c to validate computed copy lengths immediately before memcpy. Each memcpy that used (bptr - hunk_begin) or (bptr - hunk_begin - 1) is replaced with a small guarded block: compute a ptrdiff_t diff, check it is positive (or >1 for the -1 case), cast to size_t, and only then call memcpy and advance the destination pointer. The embedded line_end copy is guarded to skip when line_end_len is 0. This prevents negative sizes from reaching memcpy while preserving existing behavior for valid inputs.\",\n  \"files_modified\": [\"ext/standard/file.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "php_fgetcsv computed field copy lengths using signed pointer differences without validating the result; in certain edge cases (unterminated quoted fields, stream==NULL, or pointer arithmetic near limits) the computed difference can be negative and get implicitly converted to a very large size_t when passed to memcpy, producing an ASan negative-size-param and potential heap corruption.",
+      "fix_approach": "I made minimal, local changes in ext/standard/file.c to validate computed copy lengths immediately before memcpy. Each memcpy that used (bptr - hunk_begin) or (bptr - hunk_begin - 1) is replaced with a small guarded block: compute a ptrdiff_t diff, check it is positive (or >1 for the -1 case), cast to size_t, and only then call memcpy and advance the destination pointer. The embedded line_end copy is guarded to skip when line_end_len is 0. This prevents negative sizes from reaching memcpy while preserving existing behavior for valid inputs.",
+      "files_modified": [
+        "ext/standard/file.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 216431,
+      "output_tokens": 6336
+    },
+    "timing": {
+      "start_time": 1769167652.0305662,
+      "end_time": 1769168019.720459,
+      "duration": 367.68989276885986
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nphp_fgetcsv in ext/standard/file.c (invoked via zif_str_getcsv) can compute an incorrect copy length and pass a negative size to memcpy (ASAN negative-size-param). This leads to an invalid memcpy call that can cause memory corruption/heap overflow and crashes when parsing specially crafted CSV input, potentially enabling d",
+      "total_steps": 14,
+      "total_duration": 367.68989276885986,
+      "total_input_tokens": 216431,
+      "total_output_tokens": 6336,
+      "total_cost": 0.011271475000000001,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 317335,
+    "output_tokens": 16250
+  },
+  "timing": {
+    "total_duration": 1720.385856628418
+  }
+}

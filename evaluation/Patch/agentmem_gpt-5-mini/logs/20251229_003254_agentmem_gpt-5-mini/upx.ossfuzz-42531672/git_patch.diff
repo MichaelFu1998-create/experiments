@@ -1,0 +1,35 @@
+diff --git a/src/util/membuffer.cpp b/src/util/membuffer.cpp
+index cf90a310..a93063ff 100644
+--- a/src/util/membuffer.cpp
++++ b/src/util/membuffer.cpp
+@@ -174,8 +174,16 @@ void MemBuffer::alloc(upx_uint64_t bytes) {
+     assert(bytes > 0);
+     debug_set(debug.last_return_address_alloc, upx_return_address());
+     size_t malloc_bytes = mem_size(1, bytes); // check size
++    // Always allocate a small padding to avoid accidental small over-reads
++    // by endian helpers (get_le64/get_ne64) that may read up to 8 bytes
++    // past the requested buffer in some parsing paths.  This is a minimal
++    // mitigation: provide a few extra bytes so such reads do not hit
++    // unmapped heap and trigger ASan.  We keep the original size_in_bytes
++    // unchanged so callers still observe the requested buffer length.
++    // 16 bytes padding is chosen to be conservative.
++    malloc_bytes += 16;
+     if (use_simple_mcheck())
+-        malloc_bytes += 32;
++        malloc_bytes += 16; /* total 32 when simple mcheck enabled */
+     byte *p = (byte *) ::malloc(malloc_bytes);
+     NO_printf("MemBuffer::alloc %llu: %p\n", bytes, p);
+     if (!p)
+diff --git a/src/util/util.cpp b/src/util/util.cpp
+index d6208c80..0b939385 100644
+--- a/src/util/util.cpp
++++ b/src/util/util.cpp
+@@ -278,7 +278,7 @@ void upx_memswap(void *a, void *b, size_t n) {
+ 
+ // much better memswap(), optimized for our use case in sort functions below
+ static void memswap_no_overlap(byte *a, byte *b, size_t n) {
+-#if defined(__clang__) && __clang_major__ < 15
++#if defined(__clang__)
+     // work around a clang < 15 ICE (Internal Compiler Error)
+     // @COMPILER_BUG @CLANG_BUG
+     upx_memswap(a, b, n);

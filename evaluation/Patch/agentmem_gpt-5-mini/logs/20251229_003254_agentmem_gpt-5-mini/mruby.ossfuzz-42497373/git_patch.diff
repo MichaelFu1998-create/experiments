@@ -1,0 +1,6 @@
+diff --git a/mrbgems/mruby-sprintf/src/sprintf.c b/mrbgems/mruby-sprintf/src/sprintf.c
+index 2e6cec803..e3ed75d64 100644
+Binary files a/mrbgems/mruby-sprintf/src/sprintf.c and b/mrbgems/mruby-sprintf/src/sprintf.c differ
+diff --git a/src/fmt_fp.c b/src/fmt_fp.c
+index 807debe11..258d7e3d4 100644
+Binary files a/src/fmt_fp.c and b/src/fmt_fp.c differ

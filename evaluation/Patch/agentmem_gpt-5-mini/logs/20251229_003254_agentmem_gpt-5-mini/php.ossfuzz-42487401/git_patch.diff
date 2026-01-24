@@ -1,0 +1,141 @@
+diff --git a/Zend/zend_generators.c b/Zend/zend_generators.c
+index baca12f66b5..2ec0ad638e7 100644
+--- a/Zend/zend_generators.c
++++ b/Zend/zend_generators.c
+@@ -181,32 +181,37 @@ static void zend_generator_update_leaf_of_child(zend_generator_node *node, zend_
+ }
+ 
+ static void zend_generator_remove_leaf_child(zend_generator_node *node, zend_generator *leaf, zend_generator *replace_leaf) {
+-	if (node->children > 1) {
+-		HashTable *ht = node->child.ht;
+-		zend_ulong child_leaf;
+-		zend_generator *child_generator;
+-		zend_hash_index_del(ht, (zend_ulong) leaf);
+-		if (--node->children == 1) {
+-			ZEND_HASH_FOREACH_NUM_KEY_PTR(ht, child_leaf, child_generator) {
+-				node->child.single.leaf = (zend_generator *) child_leaf;
+-				node->child.single.child = child_generator;
+-				if (node->ptr.leaf == leaf) {
+-					node->ptr.leaf = (zend_generator *) child_leaf;
+-				}
+-				break;
+-			} ZEND_HASH_FOREACH_END();
+-			zend_hash_destroy(ht);
+-			efree(ht);
+-		} else if (node->ptr.leaf == leaf) {
+-			ZEND_HASH_FOREACH_NUM_KEY_PTR(ht, child_leaf, child_generator) {
+-				node->ptr.leaf = (zend_generator *) child_leaf;
+-				break;
+-			} ZEND_HASH_FOREACH_END();
+-		}
+-	} else if (node->ptr.leaf == leaf) {
+-		ZEND_ASSERT(replace_leaf != leaf);
+-		node->ptr.leaf = replace_leaf;
+-	}
++    if (node->children > 1) {
++        HashTable *ht = node->child.ht;
++        zend_ulong child_leaf;
++        zend_generator *child_generator;
++        /* release the child pointer stored for the removed leaf */
++        child_generator = zend_hash_index_find_ptr(ht, (zend_ulong) leaf);
++        if (child_generator) {
++            OBJ_RELEASE(&child_generator->std);
++        }
++        zend_hash_index_del(ht, (zend_ulong) leaf);
++        if (--node->children == 1) {
++            ZEND_HASH_FOREACH_NUM_KEY_PTR(ht, child_leaf, child_generator) {
++                node->child.single.leaf = (zend_generator *) child_leaf;
++                node->child.single.child = child_generator;
++                if (node->ptr.leaf == leaf) {
++                    node->ptr.leaf = (zend_generator *) child_leaf;
++                }
++                break;
++            } ZEND_HASH_FOREACH_END();
++            zend_hash_destroy(ht);
++            efree(ht);
++        } else if (node->ptr.leaf == leaf) {
++            ZEND_HASH_FOREACH_NUM_KEY_PTR(ht, child_leaf, child_generator) {
++                node->ptr.leaf = (zend_generator *) child_leaf;
++                break;
++            } ZEND_HASH_FOREACH_END();
++        }
++    } else if (node->ptr.leaf == leaf) {
++        ZEND_ASSERT(replace_leaf != leaf);
++        node->ptr.leaf = replace_leaf;
++    }
+ }
+ 
+ static void zend_generator_dtor_storage(zend_object *object) /* {{{ */
+@@ -344,8 +349,15 @@ static void zend_generator_free_storage(zend_object *object) /* {{{ */
+ 	}
+ 
+ 	if (UNEXPECTED(generator->node.children > 1)) {
+-		zend_hash_destroy(generator->node.child.ht);
+-		efree(generator->node.child.ht);
++		HashTable *ht = generator->node.child.ht;
++		zend_ulong child_leaf;
++		zend_generator *child_generator;
++		ZEND_HASH_FOREACH_NUM_KEY_PTR(ht, child_leaf, child_generator) {
++			/* release references taken when children were added */
++			OBJ_RELEASE(&child_generator->std);
++		} ZEND_HASH_FOREACH_END();
++		zend_hash_destroy(ht);
++		efree(ht);
+ 	}
+ 
+ 	zend_object_std_dtor(&generator->std);
+@@ -532,27 +544,35 @@ static zend_generator_node *zend_generator_search_multi_children_node(zend_gener
+ 
+ static void zend_generator_add_single_child(zend_generator_node *node, zend_generator *child, zend_generator *leaf)
+ {
+-	if (node->children == 0) {
+-		node->child.single.leaf = leaf;
+-		node->child.single.child = child;
+-	} else {
+-		if (node->children == 1) {
+-			HashTable *ht = emalloc(sizeof(HashTable));
+-			zend_hash_init(ht, 0, NULL, NULL, 0);
+-			zend_hash_index_add_ptr(ht,
+-				(zend_ulong) node->child.single.leaf, node->child.single.child);
+-			node->child.ht = ht;
+-		}
+-
+-		if (zend_hash_index_add_ptr(node->child.ht, (zend_ulong) leaf, child) == NULL) {
+-			ZEND_ASSERT(node->children > 1);
+-			return;
+-		}
+-	}
+-
+-	++node->children;
++    if (node->children == 0) {
++        /* store single child and take ownership (ref) */
++        node->child.single.leaf = leaf;
++        node->child.single.child = child;
++        GC_ADDREF(&child->std);
++    } else {
++        if (node->children == 1) {
++            /* convert single child storage to hash table; do not change refcount of existing child */
++            HashTable *ht = emalloc(sizeof(HashTable));
++            zend_hash_init(ht, 0, NULL, NULL, 0);
++            zend_hash_index_add_ptr(ht,
++                (zend_ulong) node->child.single.leaf, node->child.single.child);
++            node->child.ht = ht;
++        }
++
++        /* take ownership (ref) of the newly added child before inserting into ht */
++        GC_ADDREF(&child->std);
++        if (zend_hash_index_add_ptr(node->child.ht, (zend_ulong) leaf, child) == NULL) {
++            ZEND_ASSERT(node->children > 1);
++            /* undo ref if insertion failed */
++            OBJ_RELEASE(&child->std);
++            return;
++        }
++    }
++
++    ++node->children;
+ }
+ 
++
+ static void zend_generator_merge_child_nodes(zend_generator_node *dest, zend_generator_node *src, zend_generator *child)
+ {
+ 	zend_ulong leaf;

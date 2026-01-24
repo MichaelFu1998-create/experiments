@@ -1,0 +1,65 @@
+diff --git a/src/lib/OpenEXRCore/internal_huf.c b/src/lib/OpenEXRCore/internal_huf.c
+index fa769c9e..b724a8ea 100644
+--- a/src/lib/OpenEXRCore/internal_huf.c
++++ b/src/lib/OpenEXRCore/internal_huf.c
+@@ -1179,12 +1179,21 @@ FastHufDecoder_refill (
+ 
+ static inline uint64_t
+ fasthuf_read_bits (
+-    int numBits, uint64_t* buffer, int* bufferNumBits, const uint8_t** currByte)
++    int numBits, uint64_t* buffer, int* bufferNumBits, const uint8_t** currByte, const uint8_t* topByte)
+ {
+     while (*bufferNumBits < numBits)
+     {
+-        *buffer = ((*buffer) << 8) | *((*currByte)++);
+-        *bufferNumBits += 8;
++        if (*currByte >= topByte)
++        {
++            // truncated input: pad with zeros instead of reading past end
++            *buffer = ((*buffer) << 8);
++            *bufferNumBits += 8;
++        }
++        else
++        {
++            *buffer = ((*buffer) << 8) | *((*currByte)++);
++            *bufferNumBits += 8;
++        }
+     }
+ 
+     *bufferNumBits -= numBits;
+@@ -1267,7 +1276,7 @@ fasthuf_initialize (
+         //
+ 
+         uint64_t codeLen =
+-            fasthuf_read_bits (6, &currBits, &currBitCount, &currByte);
++            fasthuf_read_bits (6, &currBits, &currBitCount, &currByte, topByte);
+ 
+         if (codeLen < (uint64_t) SHORT_ZEROCODE_RUN)
+         {
+@@ -1281,7 +1290,7 @@ fasthuf_initialize (
+         }
+         else if (codeLen == (uint64_t) LONG_ZEROCODE_RUN)
+             symbol +=
+-                fasthuf_read_bits (8, &currBits, &currBitCount, &currByte) +
++                fasthuf_read_bits (8, &currBits, &currBitCount, &currByte, topByte) +
+                 SHORTEST_LONG_RUN - 1;
+         else
+             symbol += codeLen - SHORT_ZEROCODE_RUN + 1;
+@@ -1372,7 +1381,7 @@ fasthuf_initialize (
+          symbol++)
+     {
+         uint64_t codeLen =
+-            fasthuf_read_bits (6, &currBits, &currBitCount, &currByte);
++            fasthuf_read_bits (6, &currBits, &currBitCount, &currByte, topByte);
+ 
+         if (codeLen < (uint64_t) SHORT_ZEROCODE_RUN)
+         {
+@@ -1392,7 +1401,7 @@ fasthuf_initialize (
+         }
+         else if (codeLen == (uint64_t) LONG_ZEROCODE_RUN)
+             symbol +=
+-                fasthuf_read_bits (8, &currBits, &currBitCount, &currByte) +
++                fasthuf_read_bits (8, &currBits, &currBitCount, &currByte, topByte) +
+                 SHORTEST_LONG_RUN - 1;
+         else
+             symbol += codeLen - SHORT_ZEROCODE_RUN + 1;

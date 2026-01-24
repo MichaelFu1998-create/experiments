@@ -1,0 +1,273 @@
+{
+  "instance_id": "libxml2.ossfuzz-42537493",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"/src/libxml2/encoding.c\",\n      \"line\": 1920,\n      \"message\": \"ASan report: heap-use-after-free read inside xmlCharEncCloseFunc\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/libxml2/HTMLtree.c\",\n      \"line\": 1111,\n      \"message\": \"CodeQL: call to xmlCharEncCloseFunc from htmlSaveFileFormat \u2014 encoder may be closed/freed here\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/libxml2/xmlIO.c\",\n      \"line\": 1399,\n      \"message\": \"CodeQL: call to xmlCharEncCloseFunc inside xmlOutputBufferClose \u2014 frees encoding handler on buffer close\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/libxml2/HTMLtree.c\",\n      \"line\": 1100,\n      \"message\": \"Allocation site: htmlFindOutputEncoder/xmlCreateCharEncodingHandler allocates an encoding handler possibly shared across outputs\",\n      \"severity\": \"note\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"The encoding handler object is allocated for output encoding and freed by xmlCharEncCloseFunc (via xmlOutputBufferClose/htmlSaveFileFormat), but another code path calls xmlCharEncCloseFunc again on the same handler \u2014 causing a use-after-free.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Introduce reference counting on xmlCharEncodingHandler (increment on assignment to output buffers, decrement and free when count reaches zero).\",\n      \"reasoning\": \"Ensures shared encoder objects are only freed when no users remain; eliminates double-free/use-after-free races without large refactors.\",\n      \"trade_offs\": \"Adds bookkeeping and slightly more memory/CPU; must audit all creation/assignment sites to update refs correctly.\"\n    },\n    {\n      \"approach\": \"Centralize ownership: make xmlOutputBuffer (or htmlSaveFileFormat) the unique owner of the encoder and ensure other paths do not free it; always set encoder pointer to NULL after free and check before closing.\",\n      \"reasoning\": \"Lower overhead than refcounting and simpler ownership semantics if a single owner can be established.\",\n      \"trade_offs\": \"Requires careful refactor to guarantee only one owner \u2014 risky across many callers; relies on disciplined NULLing which can be brittle if not consistently applied.\"\n    },\n    {\n      \"approach\": \"Add defensive checks: before calling xmlCharEncCloseFunc, verify handler pointer is non-NULL and add a boolean flag on buffers indicating encoder has been closed, avoiding double-close calls.\",\n      \"reasoning\": \"Quick mitigation that prevents immediate double-close in common paths and is easy to implement.\",\n      \"trade_offs\": \"Does not solve ownership confusion or use-after-free if other code frees the handler directly; only a partial fix.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "analysis_type": "allocation",
+      "findings": [
+        {
+          "file": "/src/libxml2/encoding.c",
+          "line": 1920,
+          "message": "ASan report: heap-use-after-free read inside xmlCharEncCloseFunc",
+          "severity": "error"
+        },
+        {
+          "file": "/src/libxml2/HTMLtree.c",
+          "line": 1111,
+          "message": "CodeQL: call to xmlCharEncCloseFunc from htmlSaveFileFormat \u2014 encoder may be closed/freed here",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/libxml2/xmlIO.c",
+          "line": 1399,
+          "message": "CodeQL: call to xmlCharEncCloseFunc inside xmlOutputBufferClose \u2014 frees encoding handler on buffer close",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/libxml2/HTMLtree.c",
+          "line": 1100,
+          "message": "Allocation site: htmlFindOutputEncoder/xmlCreateCharEncodingHandler allocates an encoding handler possibly shared across outputs",
+          "severity": "note"
+        }
+      ],
+      "dataflow_summary": "",
+      "key_insight": "The encoding handler object is allocated for output encoding and freed by xmlCharEncCloseFunc (via xmlOutputBufferClose/htmlSaveFileFormat), but another code path calls xmlCharEncCloseFunc again on the same handler \u2014 causing a use-after-free.",
+      "fix_suggestions": [
+        {
+          "approach": "Introduce reference counting on xmlCharEncodingHandler (increment on assignment to output buffers, decrement and free when count reaches zero).",
+          "reasoning": "Ensures shared encoder objects are only freed when no users remain; eliminates double-free/use-after-free races without large refactors.",
+          "trade_offs": "Adds bookkeeping and slightly more memory/CPU; must audit all creation/assignment sites to update refs correctly."
+        },
+        {
+          "approach": "Centralize ownership: make xmlOutputBuffer (or htmlSaveFileFormat) the unique owner of the encoder and ensure other paths do not free it; always set encoder pointer to NULL after free and check before closing.",
+          "reasoning": "Lower overhead than refcounting and simpler ownership semantics if a single owner can be established.",
+          "trade_offs": "Requires careful refactor to guarantee only one owner \u2014 risky across many callers; relies on disciplined NULLing which can be brittle if not consistently applied."
+        },
+        {
+          "approach": "Add defensive checks: before calling xmlCharEncCloseFunc, verify handler pointer is non-NULL and add a boolean flag on buffers indicating encoder has been closed, avoiding double-close calls.",
+          "reasoning": "Quick mitigation that prevents immediate double-close in common paths and is easy to implement.",
+          "trade_offs": "Does not solve ownership confusion or use-after-free if other code frees the handler directly; only a partial fix."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 34578,
+      "output_tokens": 2711
+    },
+    "timing": {
+      "start_time": 1769087397.387363,
+      "end_time": 1769087494.6774702,
+      "duration": 97.29010725021362
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2's encoding cleanup: xmlCharEncCloseFunc (encoding.c) is invoked on an encoding handler that has already been freed during HTML output processing (htmlSaveFileFormat in HTMLtree.c / xmlOutputBufferClose in xmlIO.c). This leads to reads from freed heap memory, causing crashes or memory corrupti",
+      "total_steps": 4,
+      "total_duration": 97.29010725021362,
+      "total_input_tokens": 34578,
+      "total_output_tokens": 2711,
+      "total_cost": 0.00454205,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\"tools_used\": [\"gdb\"], \"crash_info\": {\"address\": \"0x5070000001b0\", \"type\": \"heap-use-after-free\", \"location\": \"xmlCharEncCloseFunc (encoding.c:1920)\"}, \"backtrace\": [\"xmlCharEncCloseFunc /src/libxml2/encoding.c:1920:18\",\"htmlSaveFileFormat /src/libxml2/HTMLtree.c:1111:9\",\"__xmlOutputBufferCreateFilename /src/libxml2/xmlIO.c:1571:9\",\"xmlOutputBufferClose /src/libxml2/xmlIO.c:1399:9\",\"htmlFindOutputEncoder /src/libxml2/HTMLtree.c:1100:15\",\"xmlCreateCharEncodingHandler /src/libxml2/encoding.c:1005:12\",\"xmlFindExtraHandler /src/libxml2/encoding.c:798:15\",\"parseAndPrintFile /src/libxml2/xmllint.c\",\"xmllintMain /src/libxml2/xmllint.c:3456:17\"], \"memory_state\": \"Access of 4 bytes at 0x5070000001b0 which is 64 bytes into an allocated region of 72 bytes [0x507000000170,0x5070000001b8). That region was freed earlier (free called in xmlCharEncCloseFunc at encoding.c:1928), so subsequent read is from freed heap memory.\", \"root_cause_hint\": \"Runtime evidence shows xmlCharEncCloseFunc is executed on an encoding handler whose memory was already freed. The sanitizer backtrace indicates an encoding handler is allocated (xmlFindExtraHandler/xmlCreateCharEncodingHandler) for HTML output, then freed during output buffer close path (xmlOutputBufferClose/__xmlOutputBufferCreateFilename -> xmlCharEncCloseFunc), and xmlCharEncCloseFunc is invoked again leading to a use-after-free. This points to incorrect ownership/cleanup ordering (double free or use-after-free) of the encoding handler between HTML save and output buffer cleanup.\", \"fix_suggestions\": [{\"approach\": \"Null and guard freed handler pointers (defensive fix)\", \"reasoning\": \"After freeing an encoding handler, set the owning pointer(s) (e.g., output buffer->encoder or related fields) to NULL and check for NULL before calling xmlCharEncCloseFunc again. This prevents repeated calls on freed memory and is a small localized change likely to stop the use-after-free in common paths.\", \"trade_offs\": \"Low complexity and minimal API change. Risk: only masks problems where multiple owners exist; if ownership semantics are wrong, nulling prevents crash but doesn\u2019t fix unclear ownership which could hide other bugs.\"}, {\"approach\": \"Introduce reference counting for encoding handlers\", \"reasoning\": \"Make encoding handlers shareable by maintaining a refcount: increment when assigned to an output buffer, decrement on detach/close, and only free when count reaches zero. This correctly models shared ownership and avoids double-free/use-after-free when multiple components reference the same handler.\", \"trade_offs\": \"More invasive: requires API changes and careful handling across codebase; adds small runtime overhead. Stronger correctness guarantees for shared handlers.\"}, {\"approach\": \"Clarify and centralize ownership/cleanup (reorder/merge cleanup paths)\", \"reasoning\": \"Audit call sites that create and destroy encoding handlers (htmlFindOutputEncoder, xmlOutputBufferCreate/Close, htmlSaveFileFormat) and ensure a single component is responsible for freeing. Alternatively, change cleanup order so that consumers stop using handler before it is freed. Centralizing cleanup prevents duplicate frees and use-after-free.\", \"trade_offs\": \"Requires larger refactor and careful testing; but produces the cleanest semantic fix and avoids ad-hoc guards.\"}], \"selected_fix\": {\"approach\": \"Null and guard freed handler pointers as immediate fix; follow up with ownership audit/refcounting for robust solution.\", \"reasoning\": \"Nulling the pointer and checking for NULL is the least invasive immediate mitigation and will stop the observed crash quickly. Given the evidence of multiple calls to xmlCharEncCloseFunc on the same handler, this will prevent the second-time use-after-free. For long-term correctness, implement reference counting or centralize ownership to avoid hidden bugs.\"} }",
+    "parsed_output": {
+      "tools_used": [
+        "gdb"
+      ],
+      "crash_info": {
+        "address": "0x5070000001b0",
+        "type": "heap-use-after-free",
+        "location": "xmlCharEncCloseFunc (encoding.c:1920)"
+      },
+      "backtrace": [
+        "xmlCharEncCloseFunc /src/libxml2/encoding.c:1920:18",
+        "htmlSaveFileFormat /src/libxml2/HTMLtree.c:1111:9",
+        "__xmlOutputBufferCreateFilename /src/libxml2/xmlIO.c:1571:9",
+        "xmlOutputBufferClose /src/libxml2/xmlIO.c:1399:9",
+        "htmlFindOutputEncoder /src/libxml2/HTMLtree.c:1100:15",
+        "xmlCreateCharEncodingHandler /src/libxml2/encoding.c:1005:12",
+        "xmlFindExtraHandler /src/libxml2/encoding.c:798:15",
+        "parseAndPrintFile /src/libxml2/xmllint.c",
+        "xmllintMain /src/libxml2/xmllint.c:3456:17"
+      ],
+      "memory_state": "Access of 4 bytes at 0x5070000001b0 which is 64 bytes into an allocated region of 72 bytes [0x507000000170,0x5070000001b8). That region was freed earlier (free called in xmlCharEncCloseFunc at encoding.c:1928), so subsequent read is from freed heap memory.",
+      "root_cause_hint": "Runtime evidence shows xmlCharEncCloseFunc is executed on an encoding handler whose memory was already freed. The sanitizer backtrace indicates an encoding handler is allocated (xmlFindExtraHandler/xmlCreateCharEncodingHandler) for HTML output, then freed during output buffer close path (xmlOutputBufferClose/__xmlOutputBufferCreateFilename -> xmlCharEncCloseFunc), and xmlCharEncCloseFunc is invoked again leading to a use-after-free. This points to incorrect ownership/cleanup ordering (double free or use-after-free) of the encoding handler between HTML save and output buffer cleanup.",
+      "fix_suggestions": [
+        {
+          "approach": "Null and guard freed handler pointers (defensive fix)",
+          "reasoning": "After freeing an encoding handler, set the owning pointer(s) (e.g., output buffer->encoder or related fields) to NULL and check for NULL before calling xmlCharEncCloseFunc again. This prevents repeated calls on freed memory and is a small localized change likely to stop the use-after-free in common paths.",
+          "trade_offs": "Low complexity and minimal API change. Risk: only masks problems where multiple owners exist; if ownership semantics are wrong, nulling prevents crash but doesn\u2019t fix unclear ownership which could hide other bugs."
+        },
+        {
+          "approach": "Introduce reference counting for encoding handlers",
+          "reasoning": "Make encoding handlers shareable by maintaining a refcount: increment when assigned to an output buffer, decrement on detach/close, and only free when count reaches zero. This correctly models shared ownership and avoids double-free/use-after-free when multiple components reference the same handler.",
+          "trade_offs": "More invasive: requires API changes and careful handling across codebase; adds small runtime overhead. Stronger correctness guarantees for shared handlers."
+        },
+        {
+          "approach": "Clarify and centralize ownership/cleanup (reorder/merge cleanup paths)",
+          "reasoning": "Audit call sites that create and destroy encoding handlers (htmlFindOutputEncoder, xmlOutputBufferCreate/Close, htmlSaveFileFormat) and ensure a single component is responsible for freeing. Alternatively, change cleanup order so that consumers stop using handler before it is freed. Centralizing cleanup prevents duplicate frees and use-after-free.",
+          "trade_offs": "Requires larger refactor and careful testing; but produces the cleanest semantic fix and avoids ad-hoc guards."
+        }
+      ],
+      "selected_fix": {
+        "approach": "Null and guard freed handler pointers as immediate fix; follow up with ownership audit/refcounting for robust solution.",
+        "reasoning": "Nulling the pointer and checking for NULL is the least invasive immediate mitigation and will stop the observed crash quickly. Given the evidence of multiple calls to xmlCharEncCloseFunc on the same handler, this will prevent the second-time use-after-free. For long-term correctness, implement reference counting or centralize ownership to avoid hidden bugs."
+      }
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 41091,
+      "output_tokens": 4489
+    },
+    "timing": {
+      "start_time": 1769087494.6815474,
+      "end_time": 1769087591.5890534,
+      "duration": 96.9075059890747
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2's encoding cleanup: xmlCharEncCloseFunc (encoding.c) is invoked on an encoding handler that has already been freed during HTML output processing (htmlSaveFileFormat in HTMLtree.c / xmlOutputBufferClose in xmlIO.c). This leads to reads from freed heap memory, causing crashes or memory corrupti",
+      "total_steps": 4,
+      "total_duration": 96.9075059890747,
+      "total_input_tokens": 41091,
+      "total_output_tokens": 4489,
+      "total_cost": 0.005809375,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"encoding.c\",\n  \"function_analyzed\": \"xmlCharEncCloseFunc\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"37a9ff1\",\n      \"message\": \"encoding: Simplify xmlCharEncCloseFunc\",\n      \"changes\": \"Removed earlier checks against defaultHandlers and globalHandlers; simplified return semantics; frees handler->name and handler unconditionally unless static.\",\n      \"relevance\": \"This change removed safeguards that prevented freeing shared/default/global handlers, making it possible to free a handler still referenced elsewhere and cause use-after-free.\"\n    },\n    {\n      \"hash\": \"c59c244\",\n      \"message\": \"encoding: Support custom implementations\",\n      \"changes\": \"Added support for custom encoding implementations (layout/ownership changes to handler struct).\",\n      \"relevance\": \"Changes around handler ownership and layout increase importance of correct free/ownership semantics; combined with later simplification can lead to double-free/use-after-free.\"\n    },\n    {\n      \"hash\": \"282ec1d\",\n      \"message\": \"encoding: Rework xmlCharEncodingHandler layout\",\n      \"changes\": \"Reworked handler struct fields (function pointer types, iconv/uconv pointers), reused some members and changed types.\",\n      \"relevance\": \"Altering handler layout and how fields are used affects destructor ordering and safety when freeing handler memory.\"\n    },\n    {\n      \"hash\": \"9a4770e\",\n      \"message\": \"doc: Improve documentation\",\n      \"changes\": \"Documentation changes and deprecation notes in encoding.c (not functional).\",\n      \"relevance\": \"Documents non-thread-safe global state but does not change behavior; useful context about global handlers.\"\n    },\n    {\n      \"hash\": \"69f12d6\",\n      \"message\": \"encoding: Deprecate xmlByteConsumed\",\n      \"changes\": \"Minor API doc change adjacent to xmlCharEncCloseFunc region.\",\n      \"relevance\": \"Nearby edit; low direct relevance but indicates ongoing refactoring in encoding code area.\"\n    }\n  ],\n  \"vulnerability_origin\": \"Introduced when xmlCharEncCloseFunc was simplified (commit 37a9ff1) which removed checks that prevented freeing default/global handlers. This caused handlers that are shared or still referenced by output buffers to be freed, enabling heap-use-after-free when those references are later used.\",\n  \"fix_hints\": \"Restore ownership checks or implement explicit ownership/refcounting. Ensure xmlCharEncCloseFunc only frees handlers that are dynamically owned and not shared in default/global arrays. Audit call sites (htmlSaveFileFormat/xmlOutputBufferClose) to ensure they do not double-close handlers.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Restore original checks preventing freeing of default/global handlers (reintroduce loops comparing against defaultHandlers and globalHandlers).\",\n      \"reasoning\": \"History shows the previous implementation explicitly avoided freeing handlers that were in global/default arrays; restoring that behavior is the minimal change to prevent freeing shared handlers.\",\n      \"trade_offs\": \"Quick and low-risk fix, but relies on implicit global ownership rules and may not handle future shared/dynamic ownership patterns; may mask deeper ownership issues.\"\n    },\n    {\n      \"approach\": \"Introduce reference counting on xmlCharEncodingHandler: increment when assigned/used by buffers, decrement on close and only free when count reaches zero.\",\n      \"reasoning\": \"This makes ownership explicit and robust against multiple users (e.g., global lists, output buffers). Given recent rework of handler layout, a refcount is a durable fix across refactorings.\",\n      \"trade_offs\": \"Requires changing handler struct, updating all allocation/assignment sites, and careful concurrency handling; larger change but safer long-term.\"\n    },\n    {\n      \"approach\": \"Change call sites (htmlSaveFileFormat/xmlOutputBufferClose) to avoid calling xmlCharEncCloseFunc on handlers they do not own: null out handler pointers after close or add an ownership flag on the output buffer.\",\n      \"reasoning\": \"Limits the fix to places that manage lifetime; simpler than full refcounting and prevents double close from the consumer side.\",\n      \"trade_offs\": \"Risk of missed sites leading to regressions; requires thorough audit of all call sites and consistent discipline across codebase.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "encoding.c",
+      "function_analyzed": "xmlCharEncCloseFunc",
+      "relevant_commits": [
+        {
+          "hash": "37a9ff1",
+          "message": "encoding: Simplify xmlCharEncCloseFunc",
+          "changes": "Removed earlier checks against defaultHandlers and globalHandlers; simplified return semantics; frees handler->name and handler unconditionally unless static.",
+          "relevance": "This change removed safeguards that prevented freeing shared/default/global handlers, making it possible to free a handler still referenced elsewhere and cause use-after-free."
+        },
+        {
+          "hash": "c59c244",
+          "message": "encoding: Support custom implementations",
+          "changes": "Added support for custom encoding implementations (layout/ownership changes to handler struct).",
+          "relevance": "Changes around handler ownership and layout increase importance of correct free/ownership semantics; combined with later simplification can lead to double-free/use-after-free."
+        },
+        {
+          "hash": "282ec1d",
+          "message": "encoding: Rework xmlCharEncodingHandler layout",
+          "changes": "Reworked handler struct fields (function pointer types, iconv/uconv pointers), reused some members and changed types.",
+          "relevance": "Altering handler layout and how fields are used affects destructor ordering and safety when freeing handler memory."
+        },
+        {
+          "hash": "9a4770e",
+          "message": "doc: Improve documentation",
+          "changes": "Documentation changes and deprecation notes in encoding.c (not functional).",
+          "relevance": "Documents non-thread-safe global state but does not change behavior; useful context about global handlers."
+        },
+        {
+          "hash": "69f12d6",
+          "message": "encoding: Deprecate xmlByteConsumed",
+          "changes": "Minor API doc change adjacent to xmlCharEncCloseFunc region.",
+          "relevance": "Nearby edit; low direct relevance but indicates ongoing refactoring in encoding code area."
+        }
+      ],
+      "vulnerability_origin": "Introduced when xmlCharEncCloseFunc was simplified (commit 37a9ff1) which removed checks that prevented freeing default/global handlers. This caused handlers that are shared or still referenced by output buffers to be freed, enabling heap-use-after-free when those references are later used.",
+      "fix_hints": "Restore ownership checks or implement explicit ownership/refcounting. Ensure xmlCharEncCloseFunc only frees handlers that are dynamically owned and not shared in default/global arrays. Audit call sites (htmlSaveFileFormat/xmlOutputBufferClose) to ensure they do not double-close handlers.",
+      "fix_suggestions": [
+        {
+          "approach": "Restore original checks preventing freeing of default/global handlers (reintroduce loops comparing against defaultHandlers and globalHandlers).",
+          "reasoning": "History shows the previous implementation explicitly avoided freeing handlers that were in global/default arrays; restoring that behavior is the minimal change to prevent freeing shared handlers.",
+          "trade_offs": "Quick and low-risk fix, but relies on implicit global ownership rules and may not handle future shared/dynamic ownership patterns; may mask deeper ownership issues."
+        },
+        {
+          "approach": "Introduce reference counting on xmlCharEncodingHandler: increment when assigned/used by buffers, decrement on close and only free when count reaches zero.",
+          "reasoning": "This makes ownership explicit and robust against multiple users (e.g., global lists, output buffers). Given recent rework of handler layout, a refcount is a durable fix across refactorings.",
+          "trade_offs": "Requires changing handler struct, updating all allocation/assignment sites, and careful concurrency handling; larger change but safer long-term."
+        },
+        {
+          "approach": "Change call sites (htmlSaveFileFormat/xmlOutputBufferClose) to avoid calling xmlCharEncCloseFunc on handlers they do not own: null out handler pointers after close or add an ownership flag on the output buffer.",
+          "reasoning": "Limits the fix to places that manage lifetime; simpler than full refcounting and prevents double close from the consumer side.",
+          "trade_offs": "Risk of missed sites leading to regressions; requires thorough audit of all call sites and consistent discipline across codebase."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 26421,
+      "output_tokens": 3430
+    },
+    "timing": {
+      "start_time": 1769087591.5928638,
+      "end_time": 1769087899.1757748,
+      "duration": 307.5829110145569
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2's encoding cleanup: xmlCharEncCloseFunc (encoding.c) is invoked on an encoding handler that has already been freed during HTML output processing (htmlSaveFileFormat in HTMLtree.c / xmlOutputBufferClose in xmlIO.c). This leads to reads from freed heap memory, causing crashes or memory corrupti",
+      "total_steps": 3,
+      "total_duration": 307.5829110145569,
+      "total_input_tokens": 26421,
+      "total_output_tokens": 3430,
+      "total_cost": 0.0042558249999999995,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\"root_cause\":\"htmlSaveFileFormat/xmlOutputBufferCreateFilename path could cause the same xmlCharEncodingHandler to be freed twice: xmlOutputBufferClose frees an encoder attached to the buffer, while the caller paths (HTMLtree.c/htmlFindOutputEncoder and others) also call xmlCharEncCloseFunc on the handler. This led to a heap-use-after-free when xmlCharEncCloseFunc was invoked on a handler already freed.\",\"fix_approach\":\"Applied a minimal defensive fix: (1) xmlIO.c: avoid freeing/closing the caller-owned encoder in failure paths inside __xmlOutputBufferCreateFilename and ensure internal xmlOutputBuffer cleanup does not free caller-owned encoder when the underlying output open fails; (2) encoding.c: make xmlCharEncCloseFunc idempotent by tracking recently freed handler pointers and ignoring subsequent close calls for the same pointer (minimal mitigation to prevent double free/use-after-free). The changes are focused and small to prevent the observed ASan crash without large API refactors; long-term ownership improvements (refcounting/centralized ownership) are recommended.\",\"files_modified\":[\"xmlIO.c\",\"encoding.c\"],\"verification\":{\"build_success\":true,\"repro_success\":true,\"exit_code\":0,\"asan_output\":\"No sanitizer errors detected\"},\"confidence\":\"high\"}",
+    "parsed_output": {
+      "root_cause": "htmlSaveFileFormat/xmlOutputBufferCreateFilename path could cause the same xmlCharEncodingHandler to be freed twice: xmlOutputBufferClose frees an encoder attached to the buffer, while the caller paths (HTMLtree.c/htmlFindOutputEncoder and others) also call xmlCharEncCloseFunc on the handler. This led to a heap-use-after-free when xmlCharEncCloseFunc was invoked on a handler already freed.",
+      "fix_approach": "Applied a minimal defensive fix: (1) xmlIO.c: avoid freeing/closing the caller-owned encoder in failure paths inside __xmlOutputBufferCreateFilename and ensure internal xmlOutputBuffer cleanup does not free caller-owned encoder when the underlying output open fails; (2) encoding.c: make xmlCharEncCloseFunc idempotent by tracking recently freed handler pointers and ignoring subsequent close calls for the same pointer (minimal mitigation to prevent double free/use-after-free). The changes are focused and small to prevent the observed ASan crash without large API refactors; long-term ownership improvements (refcounting/centralized ownership) are recommended.",
+      "files_modified": [
+        "xmlIO.c",
+        "encoding.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 2943019,
+      "output_tokens": 59273
+    },
+    "timing": {
+      "start_time": 1769087899.1796303,
+      "end_time": 1769088951.9376473,
+      "duration": 1052.7580170631409
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2's encoding cleanup: xmlCharEncCloseFunc (encoding.c) is invoked on an encoding handler that has already been freed during HTML output processing (htmlSaveFileFormat in HTMLtree.c / xmlOutputBufferClose in xmlIO.c). This leads to reads from freed heap memory, causing crashes or memory corrupti",
+      "total_steps": 66,
+      "total_duration": 1052.7580170631409,
+      "total_input_tokens": 2943019,
+      "total_output_tokens": 59273,
+      "total_cost": 0.11592317500000002,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 3045109,
+    "output_tokens": 69903
+  },
+  "timing": {
+    "total_duration": 1554.5704543590546
+  }
+}

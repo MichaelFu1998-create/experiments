@@ -1,0 +1,209 @@
+{
+  "instance_id": "mruby.ossfuzz-42497416",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"/src/mruby/src/array.c\",\n      \"line\": 614,\n      \"message\": \"Sanitizer crash: mrb_ary_shift_m performs a read at a computed index that can be driven out-of-bounds when shift count is negative (ASan SEGV reported here).\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/mruby/src/array.c\",\n      \"line\": 542,\n      \"message\": \"CodeQL memory: suspicious array access with potentially unsafe index (index derived from function arguments without explicit non-negative validation).\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/mruby/src/array.c\",\n      \"line\": 1077,\n      \"message\": \"CodeQL memory: suspicious array access (other array routines use indexes derived from callers; indicates a pattern of insufficient bounds checks).\",\n      \"severity\": \"note\"\n    }\n  ],\n  \"dataflow_summary\": \"Dataflow run produced findings in unrelated places (dangerous strcpy/strcat calls in mrbgems). No direct taint path from external input to the out-of-bounds read in mrb_ary_shift_m was reported by dataflow analysis.\",\n  \"key_insight\": \"Root cause: mrb_ary_shift_m and helper code compute/use an index/length derived from the shift argument without rejecting or properly handling negative values, allowing a negative shift to produce a negative/invalid offset and an out-of-bounds read.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate shift count early: explicitly check that the provided count is non-negative (or handle negative values per language semantics) and return/raise before using it to compute offsets.\",\n      \"reasoning\": \"Simple, minimal change that prevents negative values from producing invalid indexes. Static analysis shows index computation sites lack such checks.\",\n      \"trade_offs\": \"May change behavior for callers that relied on negative counts; must choose whether to raise ArgumentError or treat negative as 0/empty result. Low implementation cost and high safety benefit.\"\n    },\n    {\n      \"approach\": \"Clamp and bound-check computed indexes before memory access: after computing start/length from the shift argument, clamp to [0, ary->len] and use safe copy/loop that checks bounds.\",\n      \"reasoning\": \"Defensive programming ensures any incorrect or malicious value cannot produce OOB access even if upstream validation is missed.\",\n      \"trade_offs\": \"Slight performance cost from additional checks; preserves behavior (no exception) but may silently change results if callers passed invalid values.\"\n    },\n    {\n      \"approach\": \"Refactor array-indexing helpers to centralize signed/unsigned conversions and bounds checks (introduce safe accessor APIs used by mrb_ary_shift_m and other array functions).\",\n      \"reasoning\": \"Static results show multiple suspicious accesses in array.c and other files. Centralizing checks reduces duplication and future bugs.\",\n      \"trade_offs\": \"Larger code change and review needed; higher initial cost but better long-term safety and maintainability.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "/src/mruby/src/array.c",
+          "line": 614,
+          "message": "Sanitizer crash: mrb_ary_shift_m performs a read at a computed index that can be driven out-of-bounds when shift count is negative (ASan SEGV reported here).",
+          "severity": "error"
+        },
+        {
+          "file": "/src/mruby/src/array.c",
+          "line": 542,
+          "message": "CodeQL memory: suspicious array access with potentially unsafe index (index derived from function arguments without explicit non-negative validation).",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/mruby/src/array.c",
+          "line": 1077,
+          "message": "CodeQL memory: suspicious array access (other array routines use indexes derived from callers; indicates a pattern of insufficient bounds checks).",
+          "severity": "note"
+        }
+      ],
+      "dataflow_summary": "Dataflow run produced findings in unrelated places (dangerous strcpy/strcat calls in mrbgems). No direct taint path from external input to the out-of-bounds read in mrb_ary_shift_m was reported by dataflow analysis.",
+      "key_insight": "Root cause: mrb_ary_shift_m and helper code compute/use an index/length derived from the shift argument without rejecting or properly handling negative values, allowing a negative shift to produce a negative/invalid offset and an out-of-bounds read.",
+      "fix_suggestions": [
+        {
+          "approach": "Validate shift count early: explicitly check that the provided count is non-negative (or handle negative values per language semantics) and return/raise before using it to compute offsets.",
+          "reasoning": "Simple, minimal change that prevents negative values from producing invalid indexes. Static analysis shows index computation sites lack such checks.",
+          "trade_offs": "May change behavior for callers that relied on negative counts; must choose whether to raise ArgumentError or treat negative as 0/empty result. Low implementation cost and high safety benefit."
+        },
+        {
+          "approach": "Clamp and bound-check computed indexes before memory access: after computing start/length from the shift argument, clamp to [0, ary->len] and use safe copy/loop that checks bounds.",
+          "reasoning": "Defensive programming ensures any incorrect or malicious value cannot produce OOB access even if upstream validation is missed.",
+          "trade_offs": "Slight performance cost from additional checks; preserves behavior (no exception) but may silently change results if callers passed invalid values."
+        },
+        {
+          "approach": "Refactor array-indexing helpers to centralize signed/unsigned conversions and bounds checks (introduce safe accessor APIs used by mrb_ary_shift_m and other array functions).",
+          "reasoning": "Static results show multiple suspicious accesses in array.c and other files. Centralizing checks reduces duplication and future bugs.",
+          "trade_offs": "Larger code change and review needed; higher initial cost but better long-term safety and maintainability."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 22673,
+      "output_tokens": 1988
+    },
+    "timing": {
+      "start_time": 1769093610.4819746,
+      "end_time": 1769093662.8228567,
+      "duration": 52.34088206291199
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/mruby\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/mruby`. Consider the following issue description:\n\n<issue_description>\nmrb_ary_shift_m in src/array.c fails to validate negative shift counts. A negative shift value can be used when constructing/indexing the array storage, leading to an out-of-bounds/invalid memory read (segmentation fault). This can be triggered via array shift operations with negative arguments, causing crashes and other memor",
+      "total_steps": 3,
+      "total_duration": 52.34088206291199,
+      "total_input_tokens": 22673,
+      "total_output_tokens": 1988,
+      "total_cost": 0.0034397250000000002,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x52efff861228\",\n    \"type\": \"SEGV (invalid READ / out-of-bounds read)\",\n    \"location\": \"src/array.c:614 (mrb_ary_shift_m)\"\n  },\n  \"backtrace\": [\n    \"mrb_ary_shift_m at /src/mruby/src/array.c:614:14\",\n    \"mrb_vm_exec at /src/mruby/src/vm.c\",\n    \"mrb_vm_run at /src/mruby/src/vm.c:1115:12\",\n    \"mrb_load_exec at mrbgems/mruby-compiler/core/parse.y:6867:7\",\n    \"mrb_load_detect_file_cxt at mrbgems/mruby-compiler/core/parse.y:6910:12\",\n    \"main at mrbgems/mruby-bin-mruby/tools/mruby/mruby.c:347:11\"\n  ],\n  \"memory_state\": \"AddressSanitizer/UBSan report shows a read from invalid address 0x52efff861228 inside mrb_ary_shift_m. GDB could not produce a live backtrace (program exits quickly / missing irep), and valgrind was not available. The runtime evidence indicates an out-of-bounds read: a negative shift/count value is likely converted to an unsigned index/offset (or used in arithmetic) and ends up referencing memory far outside the array storage. Exact allocated size vs accessed offset couldn't be printed due to early crash, but the crash address is non-heap/invalid and consistent with a huge unsigned index derived from a negative value.\",\n  \"root_cause_hint\": \"Dynamic analysis (ASan/UBSan backtrace) points to mrb_ary_shift_m not validating negative shift counts. A negative integer used for the shift/count is likely being used directly (or cast to an unsigned type) when computing an array storage index/offset or allocation size, producing a very large index and causing an out-of-bounds read (SIGSEGV).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add an explicit check for negative shift/count arguments at the start of mrb_ary_shift_m and reject them (raise ArgumentError) or normalize them before use.\",\n      \"reasoning\": \"This is the simplest and safest fix: it prevents negative values from reaching the internal indexing/allocation code that assumes non-negative counts, avoiding unsigned underflow or huge indices.\",\n      \"trade_offs\": \"Behavior change if callers relied on negative values (if negative semantics were intended). Requires updating tests and documentation. Minimal runtime overhead.\" \n    },\n    {\n      \"approach\": \"If negative semantics are intended (e.g., remove from end), implement correct signed logic: convert negative counts to equivalent positive semantics in a well-defined manner and ensure all index arithmetic uses signed types with explicit bounds checks before casting to size_t.\",\n      \"reasoning\": \"Preserves intended API semantics while preventing invalid conversions and OOB access. Ensures correctness for both positive and negative inputs.\",\n      \"trade_offs\": \"Requires more code changes and careful review to ensure no other code assumes unsigned arithmetic. More test coverage needed to cover edge cases and performance may be slightly affected.\"\n    },\n    {\n      \"approach\": \"Defensive programming: add explicit bounds checks before every array access and ensure allocation/offset arithmetic is overflow-checked and does not unintentionally convert negative values to large unsigned values.\",\n      \"reasoning\": \"Even if argument validation is added, adding bounds checks at sensitive accesses provides defense-in-depth and prevents similar mistakes elsewhere in array handling code.\",\n      \"trade_offs\": \"Additional checks may have a small runtime cost; more invasive changes across array APIs may be needed.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan"
+      ],
+      "crash_info": {
+        "address": "0x52efff861228",
+        "type": "SEGV (invalid READ / out-of-bounds read)",
+        "location": "src/array.c:614 (mrb_ary_shift_m)"
+      },
+      "backtrace": [
+        "mrb_ary_shift_m at /src/mruby/src/array.c:614:14",
+        "mrb_vm_exec at /src/mruby/src/vm.c",
+        "mrb_vm_run at /src/mruby/src/vm.c:1115:12",
+        "mrb_load_exec at mrbgems/mruby-compiler/core/parse.y:6867:7",
+        "mrb_load_detect_file_cxt at mrbgems/mruby-compiler/core/parse.y:6910:12",
+        "main at mrbgems/mruby-bin-mruby/tools/mruby/mruby.c:347:11"
+      ],
+      "memory_state": "AddressSanitizer/UBSan report shows a read from invalid address 0x52efff861228 inside mrb_ary_shift_m. GDB could not produce a live backtrace (program exits quickly / missing irep), and valgrind was not available. The runtime evidence indicates an out-of-bounds read: a negative shift/count value is likely converted to an unsigned index/offset (or used in arithmetic) and ends up referencing memory far outside the array storage. Exact allocated size vs accessed offset couldn't be printed due to early crash, but the crash address is non-heap/invalid and consistent with a huge unsigned index derived from a negative value.",
+      "root_cause_hint": "Dynamic analysis (ASan/UBSan backtrace) points to mrb_ary_shift_m not validating negative shift counts. A negative integer used for the shift/count is likely being used directly (or cast to an unsigned type) when computing an array storage index/offset or allocation size, producing a very large index and causing an out-of-bounds read (SIGSEGV).",
+      "fix_suggestions": [
+        {
+          "approach": "Add an explicit check for negative shift/count arguments at the start of mrb_ary_shift_m and reject them (raise ArgumentError) or normalize them before use.",
+          "reasoning": "This is the simplest and safest fix: it prevents negative values from reaching the internal indexing/allocation code that assumes non-negative counts, avoiding unsigned underflow or huge indices.",
+          "trade_offs": "Behavior change if callers relied on negative values (if negative semantics were intended). Requires updating tests and documentation. Minimal runtime overhead."
+        },
+        {
+          "approach": "If negative semantics are intended (e.g., remove from end), implement correct signed logic: convert negative counts to equivalent positive semantics in a well-defined manner and ensure all index arithmetic uses signed types with explicit bounds checks before casting to size_t.",
+          "reasoning": "Preserves intended API semantics while preventing invalid conversions and OOB access. Ensures correctness for both positive and negative inputs.",
+          "trade_offs": "Requires more code changes and careful review to ensure no other code assumes unsigned arithmetic. More test coverage needed to cover edge cases and performance may be slightly affected."
+        },
+        {
+          "approach": "Defensive programming: add explicit bounds checks before every array access and ensure allocation/offset arithmetic is overflow-checked and does not unintentionally convert negative values to large unsigned values.",
+          "reasoning": "Even if argument validation is added, adding bounds checks at sensitive accesses provides defense-in-depth and prevents similar mistakes elsewhere in array handling code.",
+          "trade_offs": "Additional checks may have a small runtime cost; more invasive changes across array APIs may be needed."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 33751,
+      "output_tokens": 3412
+    },
+    "timing": {
+      "start_time": 1769093662.8269377,
+      "end_time": 1769093715.3690934,
+      "duration": 52.542155742645264
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/mruby\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/mruby`. Consider the following issue description:\n\n<issue_description>\nmrb_ary_shift_m in src/array.c fails to validate negative shift counts. A negative shift value can be used when constructing/indexing the array storage, leading to an out-of-bounds/invalid memory read (segmentation fault). This can be triggered via array shift operations with negative arguments, causing crashes and other memor",
+      "total_steps": 4,
+      "total_duration": 52.542155742645264,
+      "total_input_tokens": 33751,
+      "total_output_tokens": 3412,
+      "total_cost": 0.004419675,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"src/array.c\",\n  \"function_analyzed\": \"mrb_ary_shift_m\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"9f77232\",\n      \"message\": \"array.c: update `Array#shift` to take optional argument; close #5428\",\n      \"changes\": \"Added mrb_ary_shift_m implementation that accepts an optional integer argument (|i), implements multi-element shift by creating a new array from ARY_PTR(a) and advancing or moving elements by n.\",\n      \"relevance\": \"This commit introduces the new code path that handles a numeric argument to Array#shift but does not validate negative 'n', enabling negative shift counts that lead to pointer arithmetic on ARY_PTR/heap.ptr and out-of-bounds reads.\">\n    },\n    {\n      \"hash\": \"4626348\",\n      \"message\": \"array.c: `mrb_ary_shift_m` should be `static`.\",\n      \"changes\": \"Changed linkage of mrb_ary_shift_m from MRB_API to static (internal linkage only).\",\n      \"relevance\": \"Cosmetic/encapsulation change only; does not affect logic, but confirms the function added in the earlier commit is the locus of the behavior change.\">\n    }\n  ],\n  \"vulnerability_origin\": \"Introduced by commit 9f77232 (2021-04-27) which added mrb_ary_shift_m to support an optional numeric argument. The implementation performs pointer arithmetic (ARY_PTR(a) + n and heap.ptr += n) without checking for negative n, allowing negative values to move pointers backward and cause out-of-bounds/invalid memory access.\",\n  \"fix_hints\": \"History shows the new behavior was added to support an integer argument; a minimal fix is to validate the argument before performing pointer arithmetic. The follow-up commit making the function static is unrelated to correctness. Apply an explicit check for n < 0 and handle according to desired semantics (raise error or treat as 0).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Reject negative shift counts by validating `n` and raising ArgumentError when n < 0.\",\n      \"reasoning\": \"Simple, secure, and explicit. Prevents any pointer arithmetic with negative values and surfaces incorrect usage to the caller. Consistent with defensive programming and minimizes surface for memory-safety bugs.\",\n      \"trade_offs\": \"Changes behavior for callers that might have relied on negative values being treated as no-ops; however, allowing negatives currently causes crashes, so raising is safer and clearer.\"\n    },\n    {\n      \"approach\": \"Treat negative shift counts as zero (i.e., return empty array or no-op) by normalizing `if (n <= 0) return mrb_ary_new(mrb);`.\",\n      \"reasoning\": \"Small change, backward-compatible in the sense it avoids exceptions and prevents crashes. Matches existing branch that returns new empty array when n == 0.\",\n      \"trade_offs\": \"Silently accepts possibly invalid input instead of signaling an error; may mask programmer mistakes and diverge from MRI semantics if MRI raises.\"\n    },\n    {\n      \"approach\": \"Clamp n to valid range: if n < 0 set n = 0; if n > len set n = len; then proceed.\",\n      \"reasoning\": \"Robust normalization that prevents pointer arithmetic with negative values and keeps behavior defined for out-of-range positive values.\",\n      \"trade_offs\": \"Silent correction may hide bugs; semantic differences from upstream Ruby behavior should be checked.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"src/array.c\",\n  \"function_analyzed\": \"mrb_ary_shift_m\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"9f77232\",\n      \"message\": \"array.c: update `Array#shift` to take optional argument; close #5428\",\n      \"changes\": \"Added mrb_ary_shift_m implementation that accepts an optional integer argument (|i), implements multi-element shift by creating a new array from ARY_PTR(a) and advancing or moving elements by n.\",\n      \"relevance\": \"This commit introduces the new code path that handles a numeric argument to Array#shift but does not validate negative 'n', enabling negative shift counts that lead to pointer arithmetic on ARY_PTR/heap.ptr and out-of-bounds reads.\">\n    },\n    {\n      \"hash\": \"4626348\",\n      \"message\": \"array.c: `mrb_ary_shift_m` should be `static`.\",\n      \"changes\": \"Changed linkage of mrb_ary_shift_m from MRB_API to static (internal linkage only).\",\n      \"relevance\": \"Cosmetic/encapsulation change only; does not affect logic, but confirms the function added in the earlier commit is the locus of the behavior change.\">\n    }\n  ],\n  \"vulnerability_origin\": \"Introduced by commit 9f77232 (2021-04-27) which added mrb_ary_shift_m to support an optional numeric argument. The implementation performs pointer arithmetic (ARY_PTR(a) + n and heap.ptr += n) without checking for negative n, allowing negative values to move pointers backward and cause out-of-bounds/invalid memory access.\",\n  \"fix_hints\": \"History shows the new behavior was added to support an integer argument; a minimal fix is to validate the argument before performing pointer arithmetic. The follow-up commit making the function static is unrelated to correctness. Apply an explicit check for n < 0 and handle according to desired semantics (raise error or treat as 0).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Reject negative shift counts by validating `n` and raising ArgumentError when n < 0.\",\n      \"reasoning\": \"Simple, secure, and explicit. Prevents any pointer arithmetic with negative values and surfaces incorrect usage to the caller. Consistent with defensive programming and minimizes surface for memory-safety bugs.\",\n      \"trade_offs\": \"Changes behavior for callers that might have relied on negative values being treated as no-ops; however, allowing negatives currently causes crashes, so raising is safer and clearer.\"\n    },\n    {\n      \"approach\": \"Treat negative shift counts as zero (i.e., return empty array or no-op) by normalizing `if (n <= 0) return mrb_ary_new(mrb);`.\",\n      \"reasoning\": \"Small change, backward-compatible in the sense it avoids exceptions and prevents crashes. Matches existing branch that returns new empty array when n == 0.\",\n      \"trade_offs\": \"Silently accepts possibly invalid input instead of signaling an error; may mask programmer mistakes and diverge from MRI semantics if MRI raises.\"\n    },\n    {\n      \"approach\": \"Clamp n to valid range: if n < 0 set n = 0; if n > len set n = len; then proceed.\",\n      \"reasoning\": \"Robust normalization that prevents pointer arithmetic with negative values and keeps behavior defined for out-of-range positive values.\",\n      \"trade_offs\": \"Silent correction may hide bugs; semantic differences from upstream Ruby behavior should be checked.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 14011,
+      "output_tokens": 1765
+    },
+    "timing": {
+      "start_time": 1769093715.3725226,
+      "end_time": 1769093777.8905928,
+      "duration": 62.518070220947266
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/mruby\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/mruby`. Consider the following issue description:\n\n<issue_description>\nmrb_ary_shift_m in src/array.c fails to validate negative shift counts. A negative shift value can be used when constructing/indexing the array storage, leading to an out-of-bounds/invalid memory read (segmentation fault). This can be triggered via array shift operations with negative arguments, causing crashes and other memor",
+      "total_steps": 2,
+      "total_duration": 62.518070220947266,
+      "total_input_tokens": 14011,
+      "total_output_tokens": 1765,
+      "total_cost": 0.002249175,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"mrb_ary_shift_m used the provided shift count 'n' directly when computing array offsets without validating negative values; a negative 'n' produced invalid pointer arithmetic and out-of-bounds reads (ASan SEGV).\",\n  \"fix_approach\": \"Added an explicit normalization for the numeric argument in mrb_ary_shift_m: treat n <= 0 as returning a new empty array (same behavior previously used for n == 0) so negative values cannot reach internal pointer arithmetic. This is a minimal defensive change that prevents negative counts from causing invalid offsets.\",\n  \"files_modified\": [\"src/array.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "mrb_ary_shift_m used the provided shift count 'n' directly when computing array offsets without validating negative values; a negative 'n' produced invalid pointer arithmetic and out-of-bounds reads (ASan SEGV).",
+      "fix_approach": "Added an explicit normalization for the numeric argument in mrb_ary_shift_m: treat n <= 0 as returning a new empty array (same behavior previously used for n == 0) so negative values cannot reach internal pointer arithmetic. This is a minimal defensive change that prevents negative counts from causing invalid offsets.",
+      "files_modified": [
+        "src/array.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 183888,
+      "output_tokens": 4662
+    },
+    "timing": {
+      "start_time": 1769093777.8937132,
+      "end_time": 1769093843.820922,
+      "duration": 65.92720866203308
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/mruby\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/mruby`. Consider the following issue description:\n\n<issue_description>\nmrb_ary_shift_m in src/array.c fails to validate negative shift counts. A negative shift value can be used when constructing/indexing the array storage, leading to an out-of-bounds/invalid memory read (segmentation fault). This can be triggered via array shift operations with negative arguments, causing crashes and other memor",
+      "total_steps": 13,
+      "total_duration": 65.92720866203308,
+      "total_input_tokens": 183888,
+      "total_output_tokens": 4662,
+      "total_cost": 0.0089712,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 254323,
+    "output_tokens": 11827
+  },
+  "timing": {
+    "total_duration": 233.34560418128967
+  }
+}

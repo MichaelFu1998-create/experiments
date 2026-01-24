@@ -1,0 +1,214 @@
+{
+  "instance_id": "php.ossfuzz-42487317",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"/src/php-src/Zend/zend.c\",\n      \"line\": 1234,\n      \"message\": \"Allocation may be missing null check (CodeQL allocation finding)\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/php-src/Zend/zend_API.c\",\n      \"line\": 3068,\n      \"message\": \"Allocation may be missing null check (CodeQL allocation finding)\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/php-src/Zend/zend_alloc.c\",\n      \"line\": 2806,\n      \"message\": \"Allocation may be missing null check (CodeQL allocation finding)\",\n      \"severity\": \"warning\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"ASan trace shows a use-after-free: zend_assign_to_variable (zend_execute.h:130) reads a zval byte after zend_objects_store_del freed the object (zend_objects_API.c:204). CodeQL allocation findings highlight multiple allocations in Zend runtime paths (zend.c, zend_API.c, zend_alloc.c) that lack null-checks; the root issue is object lifetime/refcount not being preserved across reentrant calls (casts/destructors) during property assignment.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Increment object zval refcount (Z_ADDREF_P or Z_TRY_ADDREF) before performing assignment/write operations that may re-enter user code, and decrement after completion.\",\n      \"reasoning\": \"Protects the object from being freed during reentrant operations (casts, destructors, user properties) with a minimal change following existing refcounting conventions.\",\n      \"trade_offs\": \"Small runtime overhead; must be applied carefully to avoid refcount leaks in all control paths (including error/exception paths).\"\n    },\n    {\n      \"approach\": \"Use a safe temporary copy of the RHS zval (ZVAL_COPY / zval_copy_ctor) before calling any code that may free/modify objects (eg. casting to string or invoking magic methods).\",\n      \"reasoning\": \"Avoids touching the original zval after a potential reentrant call by working on an isolated copy, preventing reads from freed memory.\",\n      \"trade_offs\": \"Memory and CPU overhead from copying; needs careful management to avoid excessive copying and must preserve reference semantics where required.\"\n    },\n    {\n      \"approach\": \"Refactor zend_assign_to_variable / property assignment to ensure deterministic ownership: postpone object deletion (defer free) until after assignment finishes or centralize object store deletion to a safe point.\",\n      \"reasoning\": \"Eliminates a class of lifetime races by making frees occur only when it is safe (no further reads expected).\",\n      \"trade_offs\": \"Larger refactor with higher risk of regressions; may increase memory pressure by delaying frees and requires audit of object lifecycle code paths.\"\n    }\n  ]\n}\n",
+    "parsed_output": {
+      "analysis_type": "allocation",
+      "findings": [
+        {
+          "file": "/src/php-src/Zend/zend.c",
+          "line": 1234,
+          "message": "Allocation may be missing null check (CodeQL allocation finding)",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/php-src/Zend/zend_API.c",
+          "line": 3068,
+          "message": "Allocation may be missing null check (CodeQL allocation finding)",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/php-src/Zend/zend_alloc.c",
+          "line": 2806,
+          "message": "Allocation may be missing null check (CodeQL allocation finding)",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "",
+      "key_insight": "ASan trace shows a use-after-free: zend_assign_to_variable (zend_execute.h:130) reads a zval byte after zend_objects_store_del freed the object (zend_objects_API.c:204). CodeQL allocation findings highlight multiple allocations in Zend runtime paths (zend.c, zend_API.c, zend_alloc.c) that lack null-checks; the root issue is object lifetime/refcount not being preserved across reentrant calls (casts/destructors) during property assignment.",
+      "fix_suggestions": [
+        {
+          "approach": "Increment object zval refcount (Z_ADDREF_P or Z_TRY_ADDREF) before performing assignment/write operations that may re-enter user code, and decrement after completion.",
+          "reasoning": "Protects the object from being freed during reentrant operations (casts, destructors, user properties) with a minimal change following existing refcounting conventions.",
+          "trade_offs": "Small runtime overhead; must be applied carefully to avoid refcount leaks in all control paths (including error/exception paths)."
+        },
+        {
+          "approach": "Use a safe temporary copy of the RHS zval (ZVAL_COPY / zval_copy_ctor) before calling any code that may free/modify objects (eg. casting to string or invoking magic methods).",
+          "reasoning": "Avoids touching the original zval after a potential reentrant call by working on an isolated copy, preventing reads from freed memory.",
+          "trade_offs": "Memory and CPU overhead from copying; needs careful management to avoid excessive copying and must preserve reference semantics where required."
+        },
+        {
+          "approach": "Refactor zend_assign_to_variable / property assignment to ensure deterministic ownership: postpone object deletion (defer free) until after assignment finishes or centralize object store deletion to a safe point.",
+          "reasoning": "Eliminates a class of lifetime races by making frees occur only when it is safe (no further reads expected).",
+          "trade_offs": "Larger refactor with higher risk of regressions; may increase memory pressure by delaying frees and requires audit of object lifecycle code paths."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 28674,
+      "output_tokens": 2842
+    },
+    "timing": {
+      "start_time": 1769132578.2272122,
+      "end_time": 1769132640.846532,
+      "duration": 62.619319915771484
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend: zend_assign_to_variable (reached via zend_std_write_property) can read a zval/object byte after it has been freed during object property assignment. This use-after-free can lead to crashes, memory corruption, information disclosure, or potentially arbitrary code execution.\n---\n==63318==ERROR: A",
+      "total_steps": 3,
+      "total_duration": 62.619319915771484,
+      "total_input_tokens": 28674,
+      "total_output_tokens": 2842,
+      "total_cost": 0.00446785,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x5060000148d1 (also observed 0x5060000149f1 in a subsequent run)\",\n    \"type\": \"heap-use-after-free\",\n    \"location\": \"Zend/zend_execute.h:130:7 (zend_assign_to_variable)\"\n  },\n  \"backtrace\": [\n    \"zend_assign_to_variable at Zend/zend_execute.h:130\",\n    \"zend_std_write_property at Zend/zend_object_handlers.c:736\",\n    \"ZEND_ASSIGN_OBJ_SPEC_CV_CONST_OP_DATA_VAR_HANDLER at Zend/zend_vm_execute.h:40669\",\n    \"execute_ex at Zend/zend_vm_execute.h:54485\",\n    \"zend_execute at Zend/zend_vm_execute.h:59034\",\n    \"zend_execute_scripts at Zend/zend.c:1789\",\n    \"php_execute_script at main/main.c:2517\",\n    \"do_cli at sapi/cli/php_cli.c:965\",\n    \"free at asan_malloc_linux.cpp:52\",\n    \"zend_objects_store_del at Zend/zend_objects_API.c:204\"\n  ],\n  \"memory_state\": \"ASan reports a READ of size 1 at 0x5060000148d1. That address lies 49 bytes inside a 56-byte heap allocation [0x5060000148a0,0x5060000148d8) which had been freed (freed-region bytes shown by ASan). In short: code reads a byte from a heap allocation after it was freed.\",\n  \"root_cause_hint\": \"Dynamic evidence (ASan backtrace + GDB fallback) shows zend_objects_store_del/free is invoked (object is destroyed) during an assignment path, and subsequently zend_assign_to_variable/zend_std_write_property reads from the same memory. This indicates the assignment path allows the assigned value (or an object it references) to be freed prematurely (likely due to refcount going to zero or a destructor running during type verification/cast), but later code still dereferences the pointer rather than using a live refcounted zval/object.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure a live reference to the value/object during the whole assignment sequence (increment refcount / hold a reference before any operation that may free it, then decrement after).\",\n      \"reasoning\": \"The ASan trace shows the object/value is freed during the assignment flow (zend_objects_store_del). Increasing the refcount (Z_ADDREF_P / Z_TRY_ADDREF_P) or otherwise ensuring ownership before operations that may invoke destructors (type checks, casts, property handlers) prevents the memory from being freed while it is still needed.\",\n      \"trade_offs\": \"Small runtime overhead from additional refcount increments/decrements; must be done carefully to avoid introducing reference leaks. This is the least invasive, correct approach in typical Zend memory model.\" \n    },\n    {\n      \"approach\": \"Perform potentially freeing operations (type verification, casting, calling userland code) on a safe copy of the value or reorder work to postpone any destructor-triggering actions until after all reads are complete.\",\n      \"reasoning\": \"Copying the value or reordering avoids touching the original memory after it could have been freed. This isolates destructive side effects to a separate value and prevents UAF.\",\n      \"trade_offs\": \"More memory usage and CPU overhead due to copies. Reordering may be complex if many code paths rely on current interleaving of side effects and checks.\" \n    },\n    {\n      \"approach\": \"Add defensive programming checks and avoid using raw pointers to zval/object memory after operations that may free them; use APIs that operate on zvals safely (e.g., always operate via zval pointers with guaranteed refcount or use temporary zvals).\",\n      \"reasoning\": \"Makes code more robust to lifecycle changes and reduces the chance of dereferencing freed memory.\",\n      \"trade_offs\": \"Difficult to get fully correct in all paths; such checks cannot detect memory that was freed (they can only avoid holding unsafe raw pointers), and may require significant refactor.\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x5060000148d1 (also observed 0x5060000149f1 in a subsequent run)\",\n    \"type\": \"heap-use-after-free\",\n    \"location\": \"Zend/zend_execute.h:130:7 (zend_assign_to_variable)\"\n  },\n  \"backtrace\": [\n    \"zend_assign_to_variable at Zend/zend_execute.h:130\",\n    \"zend_std_write_property at Zend/zend_object_handlers.c:736\",\n    \"ZEND_ASSIGN_OBJ_SPEC_CV_CONST_OP_DATA_VAR_HANDLER at Zend/zend_vm_execute.h:40669\",\n    \"execute_ex at Zend/zend_vm_execute.h:54485\",\n    \"zend_execute at Zend/zend_vm_execute.h:59034\",\n    \"zend_execute_scripts at Zend/zend.c:1789\",\n    \"php_execute_script at main/main.c:2517\",\n    \"do_cli at sapi/cli/php_cli.c:965\",\n    \"free at asan_malloc_linux.cpp:52\",\n    \"zend_objects_store_del at Zend/zend_objects_API.c:204\"\n  ],\n  \"memory_state\": \"ASan reports a READ of size 1 at 0x5060000148d1. That address lies 49 bytes inside a 56-byte heap allocation [0x5060000148a0,0x5060000148d8) which had been freed (freed-region bytes shown by ASan). In short: code reads a byte from a heap allocation after it was freed.\",\n  \"root_cause_hint\": \"Dynamic evidence (ASan backtrace + GDB fallback) shows zend_objects_store_del/free is invoked (object is destroyed) during an assignment path, and subsequently zend_assign_to_variable/zend_std_write_property reads from the same memory. This indicates the assignment path allows the assigned value (or an object it references) to be freed prematurely (likely due to refcount going to zero or a destructor running during type verification/cast), but later code still dereferences the pointer rather than using a live refcounted zval/object.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure a live reference to the value/object during the whole assignment sequence (increment refcount / hold a reference before any operation that may free it, then decrement after).\",\n      \"reasoning\": \"The ASan trace shows the object/value is freed during the assignment flow (zend_objects_store_del). Increasing the refcount (Z_ADDREF_P / Z_TRY_ADDREF_P) or otherwise ensuring ownership before operations that may invoke destructors (type checks, casts, property handlers) prevents the memory from being freed while it is still needed.\",\n      \"trade_offs\": \"Small runtime overhead from additional refcount increments/decrements; must be done carefully to avoid introducing reference leaks. This is the least invasive, correct approach in typical Zend memory model.\" \n    },\n    {\n      \"approach\": \"Perform potentially freeing operations (type verification, casting, calling userland code) on a safe copy of the value or reorder work to postpone any destructor-triggering actions until after all reads are complete.\",\n      \"reasoning\": \"Copying the value or reordering avoids touching the original memory after it could have been freed. This isolates destructive side effects to a separate value and prevents UAF.\",\n      \"trade_offs\": \"More memory usage and CPU overhead due to copies. Reordering may be complex if many code paths rely on current interleaving of side effects and checks.\" \n    },\n    {\n      \"approach\": \"Add defensive programming checks and avoid using raw pointers to zval/object memory after operations that may free them; use APIs that operate on zvals safely (e.g., always operate via zval pointers with guaranteed refcount or use temporary zvals).\",\n      \"reasoning\": \"Makes code more robust to lifecycle changes and reduces the chance of dereferencing freed memory.\",\n      \"trade_offs\": \"Difficult to get fully correct in all paths; such checks cannot detect memory that was freed (they can only avoid holding unsafe raw pointers), and may require significant refactor.\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 29847,
+      "output_tokens": 3479
+    },
+    "timing": {
+      "start_time": 1769132640.8502169,
+      "end_time": 1769132774.7280445,
+      "duration": 133.87782764434814
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend: zend_assign_to_variable (reached via zend_std_write_property) can read a zval/object byte after it has been freed during object property assignment. This use-after-free can lead to crashes, memory corruption, information disclosure, or potentially arbitrary code execution.\n---\n==63318==ERROR: A",
+      "total_steps": 3,
+      "total_duration": 133.87782764434814,
+      "total_input_tokens": 29847,
+      "total_output_tokens": 3479,
+      "total_cost": 0.004387475,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"Zend/zend_execute.h\",\n  \"function_analyzed\": \"zend_assign_to_variable\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"5a447b0\",\n      \"message\": \"Change calling convention of zval_update_constant[_ex]() to fastcall.\",\n      \"changes\": \"Changed zval_update_constant and zval_update_constant_ex prototypes to ZEND_FASTCALL in Zend/zend_execute.h.\",\n      \"relevance\": \"Touches declarations referenced from zend_assign_to_variable; ABI/prototype mismatches can cause unexpected behaviour when calling these helpers from the executor.\" \n    },\n    {\n      \"hash\": \"6188b7a\",\n      \"message\": \"Revert \\\"Change calling convention of zval_update_constant[_ex]() to fastcall.\\\"\",\n      \"changes\": \"Reverted the ZEND_FASTCALL prototype change, restoring original prototypes in Zend/zend_execute.h.\",\n      \"relevance\": \"Reversion indicates the prior change caused issues (ABI/compatibility). Shows care around calling convention/prototype consistency which is relevant to crashes during executor calls.\"\n    },\n    {\n      \"hash\": \"3e01f5a\",\n      \"message\": \"Replace zend_bool uses with bool\",\n      \"changes\": \"Replaced zend_bool with standard bool in function prototypes (including several executor APIs) in Zend/zend_execute.h.\",\n      \"relevance\": \"Type changes in prototypes can introduce subtle ABI/semantic differences if declarations and definitions are not kept in sync; may affect how functions used by zend_assign_to_variable behave.\"\n    }\n  ],\n  \"vulnerability_origin\": \"No direct logic change to zend_assign_to_variable in the inspected commits. History shows ABI/prototype churn (calling convention and zend_bool->bool) nearby; the heap-use-after-free is likely a runtime ordering/lifetime issue in zend_assign_to_variable when it invokes helpers (which may trigger destructors) and subsequently reads freed memory.\",\n  \"fix_hints\": \"Ensure prototype/ABI consistency between headers and implementations. Protect values used after calling helper functions that may free objects: increment reference or make a temporary copy before calling code that can run destructors. Reorder freeing until after all reads.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Increase object/zval refcount (or take a temporary copy) before calling helpers/verification that may invoke user code/destructors.\",\n      \"reasoning\": \"Historical commits show ABI/prototype fragility; the safer approach is to make sure the object stays alive across calls that may run user code. Incrementing refcount is a minimal, well-known pattern to prevent UAF during callbacks/destructors.\",\n      \"trade_offs\": \"Small performance cost and complexity to manage refcount on all paths; must ensure balanced decrements to avoid leaks.\"\n    },\n    {\n      \"approach\": \"Reorder operations: perform type verification and any conversions/calls that may free the target before reading or freeing the old value; defer free until after all reads are complete.\",\n      \"reasoning\": \"Avoids reading memory after a potential free by ensuring the free happens last. This is a low-level fix that keeps lifetimes explicit.\",\n      \"trade_offs\": \"May require more invasive rework of assignment flow; careful handling of failure paths needed to avoid leaks or double-frees.\"\n    },\n    {\n      \"approach\": \"Add defensive checks/guards around zend_assign_to_variable to detect if invoked helpers changed object state (e.g., re-fetch property zval after helper returns) and bail out or restart assignment safely.\",\n      \"reasoning\": \"Safer fallback that can be used while investigating root cause; useful if helpers can run arbitrary code that mutates values.\",\n      \"trade_offs\": \"Adds complexity and potential performance overhead; may be harder to get correct for concurrency or re-entrant scenarios.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "Zend/zend_execute.h",
+      "function_analyzed": "zend_assign_to_variable",
+      "relevant_commits": [
+        {
+          "hash": "5a447b0",
+          "message": "Change calling convention of zval_update_constant[_ex]() to fastcall.",
+          "changes": "Changed zval_update_constant and zval_update_constant_ex prototypes to ZEND_FASTCALL in Zend/zend_execute.h.",
+          "relevance": "Touches declarations referenced from zend_assign_to_variable; ABI/prototype mismatches can cause unexpected behaviour when calling these helpers from the executor."
+        },
+        {
+          "hash": "6188b7a",
+          "message": "Revert \"Change calling convention of zval_update_constant[_ex]() to fastcall.\"",
+          "changes": "Reverted the ZEND_FASTCALL prototype change, restoring original prototypes in Zend/zend_execute.h.",
+          "relevance": "Reversion indicates the prior change caused issues (ABI/compatibility). Shows care around calling convention/prototype consistency which is relevant to crashes during executor calls."
+        },
+        {
+          "hash": "3e01f5a",
+          "message": "Replace zend_bool uses with bool",
+          "changes": "Replaced zend_bool with standard bool in function prototypes (including several executor APIs) in Zend/zend_execute.h.",
+          "relevance": "Type changes in prototypes can introduce subtle ABI/semantic differences if declarations and definitions are not kept in sync; may affect how functions used by zend_assign_to_variable behave."
+        }
+      ],
+      "vulnerability_origin": "No direct logic change to zend_assign_to_variable in the inspected commits. History shows ABI/prototype churn (calling convention and zend_bool->bool) nearby; the heap-use-after-free is likely a runtime ordering/lifetime issue in zend_assign_to_variable when it invokes helpers (which may trigger destructors) and subsequently reads freed memory.",
+      "fix_hints": "Ensure prototype/ABI consistency between headers and implementations. Protect values used after calling helper functions that may free objects: increment reference or make a temporary copy before calling code that can run destructors. Reorder freeing until after all reads.",
+      "fix_suggestions": [
+        {
+          "approach": "Increase object/zval refcount (or take a temporary copy) before calling helpers/verification that may invoke user code/destructors.",
+          "reasoning": "Historical commits show ABI/prototype fragility; the safer approach is to make sure the object stays alive across calls that may run user code. Incrementing refcount is a minimal, well-known pattern to prevent UAF during callbacks/destructors.",
+          "trade_offs": "Small performance cost and complexity to manage refcount on all paths; must ensure balanced decrements to avoid leaks."
+        },
+        {
+          "approach": "Reorder operations: perform type verification and any conversions/calls that may free the target before reading or freeing the old value; defer free until after all reads are complete.",
+          "reasoning": "Avoids reading memory after a potential free by ensuring the free happens last. This is a low-level fix that keeps lifetimes explicit.",
+          "trade_offs": "May require more invasive rework of assignment flow; careful handling of failure paths needed to avoid leaks or double-frees."
+        },
+        {
+          "approach": "Add defensive checks/guards around zend_assign_to_variable to detect if invoked helpers changed object state (e.g., re-fetch property zval after helper returns) and bail out or restart assignment safely.",
+          "reasoning": "Safer fallback that can be used while investigating root cause; useful if helpers can run arbitrary code that mutates values.",
+          "trade_offs": "Adds complexity and potential performance overhead; may be harder to get correct for concurrency or re-entrant scenarios."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 27848,
+      "output_tokens": 2975
+    },
+    "timing": {
+      "start_time": 1769132774.7312803,
+      "end_time": 1769133618.7110674,
+      "duration": 843.9797871112823
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend: zend_assign_to_variable (reached via zend_std_write_property) can read a zval/object byte after it has been freed during object property assignment. This use-after-free can lead to crashes, memory corruption, information disclosure, or potentially arbitrary code execution.\n---\n==63318==ERROR: A",
+      "total_steps": 3,
+      "total_duration": 843.9797871112823,
+      "total_input_tokens": 27848,
+      "total_output_tokens": 2975,
+      "total_cost": 0.0038496,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"During property assignment, zend_std_write_property performed property type verification which could invoke userland code (casts, magic methods, destructors) that freed the object. The code did not hold a stable reference to the object across these potentially reentrant calls, allowing the object memory to be freed and later read by zend_assign_to_variable, causing a heap-use-after-free.\",\n  \"fix_approach\": \"Added a minimal lifetime guard in zend_std_write_property: take a temporary reference (GC_ADDREF) to the object before calling zend_verify_property_type and other operations that can re-enter user code, and release it (OBJ_RELEASE) after assignment/verification completes (including at all exit paths). This prevents the object from being destroyed while the assignment code still needs to read it and avoids copying semantics changes elsewhere.\",\n  \"files_modified\": [\"Zend/zend_object_handlers.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "During property assignment, zend_std_write_property performed property type verification which could invoke userland code (casts, magic methods, destructors) that freed the object. The code did not hold a stable reference to the object across these potentially reentrant calls, allowing the object memory to be freed and later read by zend_assign_to_variable, causing a heap-use-after-free.",
+      "fix_approach": "Added a minimal lifetime guard in zend_std_write_property: take a temporary reference (GC_ADDREF) to the object before calling zend_verify_property_type and other operations that can re-enter user code, and release it (OBJ_RELEASE) after assignment/verification completes (including at all exit paths). This prevents the object from being destroyed while the assignment code still needs to read it and avoids copying semantics changes elsewhere.",
+      "files_modified": [
+        "Zend/zend_object_handlers.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 745196,
+      "output_tokens": 15762
+    },
+    "timing": {
+      "start_time": 1769133618.71455,
+      "end_time": 1769133980.4140782,
+      "duration": 361.6995282173157
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend: zend_assign_to_variable (reached via zend_std_write_property) can read a zval/object byte after it has been freed during object property assignment. This use-after-free can lead to crashes, memory corruption, information disclosure, or potentially arbitrary code execution.\n---\n==63318==ERROR: A",
+      "total_steps": 23,
+      "total_duration": 361.6995282173157,
+      "total_input_tokens": 745196,
+      "total_output_tokens": 15762,
+      "total_cost": 0.0296107,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 831565,
+    "output_tokens": 25058
+  },
+  "timing": {
+    "total_duration": 1402.1985981464386
+  }
+}

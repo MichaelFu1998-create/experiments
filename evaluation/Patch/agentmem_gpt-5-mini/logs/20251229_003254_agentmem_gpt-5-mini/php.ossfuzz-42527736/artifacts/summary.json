@@ -1,0 +1,11 @@
+{
+  "instance_id": "php.ossfuzz-42527736",
+  "final_status": "success",
+  "total_token_usage": {
+    "input_tokens": 317335,
+    "output_tokens": 16250
+  },
+  "timing": {
+    "total_duration": 1720.385856628418
+  }
+}

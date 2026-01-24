@@ -1,0 +1,252 @@
+{
+  "instance_id": "php.ossfuzz-42500752",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"Zend/zend_closures.c\",\n      \"line\": 486,\n      \"message\": \"ASan stack trace points to zend_closure_free_storage calling zend_string_release on a freed zend_string; CodeQL allocation run produced no direct allocation finding in this file.\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"Zend/zend_string.h\",\n      \"line\": 319,\n      \"message\": \"ASan shows heap-use-after-free inside zend_string_release (read of freed memory).\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"Zend/zend_objects_API.c\",\n      \"line\": 200,\n      \"message\": \"ASan shows zend_objects_store_del invoked during object destruction which leads to closure free path.\",\n      \"severity\": \"note\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"Root cause is an ownership / reference-count mismatch: zend_closure_free_storage releases a zend_string that has already been freed elsewhere, indicating the closure does not reliably own the function_name pointer or its refcount was not incremented.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Enforce reference-count ownership: when a closure stores a function name, call zend_string_addref (or zend_string_copy) at assignment and zend_string_release exactly once in zend_closure_free_storage.\",\n      \"reasoning\": \"Matches existing zend_string refcounting semantics so release calls become safe and double-free is avoided.\",\n      \"trade_offs\": \"Small runtime and memory overhead for additional refcount increments; requires auditing all assignment sites to ensure consistent ownership semantics.\"\n    },\n    {\n      \"approach\": \"Do not release the shared function_name in zend_closure_free_storage unless the closure explicitly owns it (document and check ownership), and set pointer to NULL after free.\",\n      \"reasoning\": \"Avoids double-free by making closure only release strings it owns.\",\n      \"trade_offs\": \"Requires clear ownership model and code changes across callers; risk of leaking strings if ownership not assigned correctly.\"\n    },\n    {\n      \"approach\": \"Always duplicate the function name when creating a closure (zend_string_copy) so closure has an independent copy to free.\",\n      \"reasoning\": \"Simple and robust: no shared ownership means no double-release bugs at the cost of extra memory per closure.\",\n      \"trade_offs\": \"Increased memory usage and allocation overhead; may be undesirable if closures are numerous or names are large.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "analysis_type": "allocation",
+      "findings": [
+        {
+          "file": "Zend/zend_closures.c",
+          "line": 486,
+          "message": "ASan stack trace points to zend_closure_free_storage calling zend_string_release on a freed zend_string; CodeQL allocation run produced no direct allocation finding in this file.",
+          "severity": "error"
+        },
+        {
+          "file": "Zend/zend_string.h",
+          "line": 319,
+          "message": "ASan shows heap-use-after-free inside zend_string_release (read of freed memory).",
+          "severity": "error"
+        },
+        {
+          "file": "Zend/zend_objects_API.c",
+          "line": 200,
+          "message": "ASan shows zend_objects_store_del invoked during object destruction which leads to closure free path.",
+          "severity": "note"
+        }
+      ],
+      "dataflow_summary": "",
+      "key_insight": "Root cause is an ownership / reference-count mismatch: zend_closure_free_storage releases a zend_string that has already been freed elsewhere, indicating the closure does not reliably own the function_name pointer or its refcount was not incremented.",
+      "fix_suggestions": [
+        {
+          "approach": "Enforce reference-count ownership: when a closure stores a function name, call zend_string_addref (or zend_string_copy) at assignment and zend_string_release exactly once in zend_closure_free_storage.",
+          "reasoning": "Matches existing zend_string refcounting semantics so release calls become safe and double-free is avoided.",
+          "trade_offs": "Small runtime and memory overhead for additional refcount increments; requires auditing all assignment sites to ensure consistent ownership semantics."
+        },
+        {
+          "approach": "Do not release the shared function_name in zend_closure_free_storage unless the closure explicitly owns it (document and check ownership), and set pointer to NULL after free.",
+          "reasoning": "Avoids double-free by making closure only release strings it owns.",
+          "trade_offs": "Requires clear ownership model and code changes across callers; risk of leaking strings if ownership not assigned correctly."
+        },
+        {
+          "approach": "Always duplicate the function name when creating a closure (zend_string_copy) so closure has an independent copy to free.",
+          "reasoning": "Simple and robust: no shared ownership means no double-release bugs at the cost of extra memory per closure.",
+          "trade_offs": "Increased memory usage and allocation overhead; may be undesirable if closures are numerous or names are large."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 39556,
+      "output_tokens": 3397
+    },
+    "timing": {
+      "start_time": 1769155385.589557,
+      "end_time": 1769155461.727148,
+      "duration": 76.13759112358093
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend/zend_closures.c: zend_closure_free_storage can end up invoking zend_string_release on a function name that has already been freed, causing subsequent reads of freed heap memory (seen via zend_string_release and zend_objects_store_del). This use-after-free during closure/object destruction can ca",
+      "total_steps": 4,
+      "total_duration": 76.13759112358093,
+      "total_input_tokens": 39556,
+      "total_output_tokens": 3397,
+      "total_cost": 0.0054039,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\"tools_used\": [\"gdb\",\"ubsan\"], \"crash_info\": {\"address\": \"0x5060000145a4\", \"type\": \"use-after-free\", \"location\": \"Zend/zend_string.h:319 (zend_string_release)\"}, \"backtrace\": [\"zend_string_release at Zend/zend_string.h:319\",\"zend_closure_free_storage at Zend/zend_closures.c:486\",\"zend_objects_store_del at Zend/zend_objects_API.c:200\",\"ZEND_UNSET_CV_SPEC_CV_UNUSED_HANDLER at Zend/zend_vm_execute.h:46971\",\"execute_ex at Zend/zend_vm_execute.h:54290\",\"zend_execute at Zend/zend_vm_execute.h:58843\",\"zend_execute_scripts at Zend/zend.c:1761\",\"php_execute_script at main/main.c:2519\",\"do_cli at sapi/cli/php_cli.c:965\",\"main at sapi/cli/php_cli.c:1367\"], \"memory_state\": \"ASan shows the accessed address is inside a freed heap region: a 64-byte allocation was made (malloc) and later freed, then zend_string_release attempted a read 4 bytes into the region. Shadow/ASan report shows freed region (fd) and access in freed memory. Free occurred in zend_string_release itself (indicating double-free/use-after-free during closure/object destruction).\", \"root_cause_hint\": \"Runtime evidence shows zend_closure_free_storage ends up calling zend_string_release on a zend_string that was already freed earlier on the same destruction path. The free and subsequent read occur in the closure/object destruction sequence (zend_closure_free_storage -> zend_objects_store_del), which indicates incorrect ownership/refcount handling or double-release of the function_name zend_string (missing NULLing after release or missing refcount increment when multiple owners exist).\", \"fix_suggestions\": [{\"approach\": \"Ensure single ownership or proper refcounting of the function name string: audit assignments of the function_name zend_string to closures/objects and increment refcount when another owner is stored; decrement once when owner is destroyed.\", \"reasoning\": \"The sanitizer backtrace shows the same zend_string being freed while still referenced \u2014 using proper refcounting or explicitly duplicating the string on assignment prevents premature free and use-after-free.\", \"trade_offs\": \"Slight runtime cost for additional refcount operations or strdup. Requires careful audit to avoid refcount leaks or missing releases.\"}, {\"approach\": \"Null-out pointers after releasing: in zend_closure_free_storage (and other destructors), after calling zend_string_release(function_name) set the pointer to NULL and ensure subsequent destructor steps check for NULL before releasing.\", \"reasoning\": \"Setting the pointer to NULL avoids accidental double-release in the same destruction path and makes intent explicit, addressing immediate cause demonstrated by ASan.\", \"trade_offs\": \"Fixes only this specific double-release site; other code paths that assume non-NULL may need adjustments. Low overhead.\"}, {\"approach\": \"Change free order and add defensive checks: adjust closure/object destruction ordering so dependent members are released in a safe sequence and add guards (if (str) zend_string_release(str); str = NULL;) and ASSERTs in debug builds to catch future incorrect releases.\", \"reasoning\": \"If the problem arises from release ordering, ensuring a consistent order prevents use-after-free during destructor cascades. Defensive checks give clear diagnostics during development.\", \"trade_offs\": \"Requires careful reasoning about lifecycle; may hide upstream ownership bugs if used as the only fix.\"}] }",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan"
+      ],
+      "crash_info": {
+        "address": "0x5060000145a4",
+        "type": "use-after-free",
+        "location": "Zend/zend_string.h:319 (zend_string_release)"
+      },
+      "backtrace": [
+        "zend_string_release at Zend/zend_string.h:319",
+        "zend_closure_free_storage at Zend/zend_closures.c:486",
+        "zend_objects_store_del at Zend/zend_objects_API.c:200",
+        "ZEND_UNSET_CV_SPEC_CV_UNUSED_HANDLER at Zend/zend_vm_execute.h:46971",
+        "execute_ex at Zend/zend_vm_execute.h:54290",
+        "zend_execute at Zend/zend_vm_execute.h:58843",
+        "zend_execute_scripts at Zend/zend.c:1761",
+        "php_execute_script at main/main.c:2519",
+        "do_cli at sapi/cli/php_cli.c:965",
+        "main at sapi/cli/php_cli.c:1367"
+      ],
+      "memory_state": "ASan shows the accessed address is inside a freed heap region: a 64-byte allocation was made (malloc) and later freed, then zend_string_release attempted a read 4 bytes into the region. Shadow/ASan report shows freed region (fd) and access in freed memory. Free occurred in zend_string_release itself (indicating double-free/use-after-free during closure/object destruction).",
+      "root_cause_hint": "Runtime evidence shows zend_closure_free_storage ends up calling zend_string_release on a zend_string that was already freed earlier on the same destruction path. The free and subsequent read occur in the closure/object destruction sequence (zend_closure_free_storage -> zend_objects_store_del), which indicates incorrect ownership/refcount handling or double-release of the function_name zend_string (missing NULLing after release or missing refcount increment when multiple owners exist).",
+      "fix_suggestions": [
+        {
+          "approach": "Ensure single ownership or proper refcounting of the function name string: audit assignments of the function_name zend_string to closures/objects and increment refcount when another owner is stored; decrement once when owner is destroyed.",
+          "reasoning": "The sanitizer backtrace shows the same zend_string being freed while still referenced \u2014 using proper refcounting or explicitly duplicating the string on assignment prevents premature free and use-after-free.",
+          "trade_offs": "Slight runtime cost for additional refcount operations or strdup. Requires careful audit to avoid refcount leaks or missing releases."
+        },
+        {
+          "approach": "Null-out pointers after releasing: in zend_closure_free_storage (and other destructors), after calling zend_string_release(function_name) set the pointer to NULL and ensure subsequent destructor steps check for NULL before releasing.",
+          "reasoning": "Setting the pointer to NULL avoids accidental double-release in the same destruction path and makes intent explicit, addressing immediate cause demonstrated by ASan.",
+          "trade_offs": "Fixes only this specific double-release site; other code paths that assume non-NULL may need adjustments. Low overhead."
+        },
+        {
+          "approach": "Change free order and add defensive checks: adjust closure/object destruction ordering so dependent members are released in a safe sequence and add guards (if (str) zend_string_release(str); str = NULL;) and ASSERTs in debug builds to catch future incorrect releases.",
+          "reasoning": "If the problem arises from release ordering, ensuring a consistent order prevents use-after-free during destructor cascades. Defensive checks give clear diagnostics during development.",
+          "trade_offs": "Requires careful reasoning about lifecycle; may hide upstream ownership bugs if used as the only fix."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 29441,
+      "output_tokens": 2708
+    },
+    "timing": {
+      "start_time": 1769155461.7315195,
+      "end_time": 1769155697.9885187,
+      "duration": 236.25699925422668
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend/zend_closures.c: zend_closure_free_storage can end up invoking zend_string_release on a function name that has already been freed, causing subsequent reads of freed heap memory (seen via zend_string_release and zend_objects_store_del). This use-after-free during closure/object destruction can ca",
+      "total_steps": 3,
+      "total_duration": 236.25699925422668,
+      "total_input_tokens": 29441,
+      "total_output_tokens": 2708,
+      "total_cost": 0.0036665249999999995,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"Zend/zend_closures.c\",\n  \"function_analyzed\": \"zend_closure_free_storage\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"c0b1bdc\",\n      \"message\": \"Fixed bug #80929\",\n      \"changes\": \"In zend_closure_free_storage: call destroy_op_array for user functions; for closures created from trampolines, call zend_string_release on closure->func.common.function_name.\",\n      \"relevance\": \"Directly modified the free path and added zend_string_release on function_name \u2014 likely introduced incorrect ownership/releases that lead to the use-after-free.\"\n    },\n    {\n      \"hash\": \"008bfcc\",\n      \"message\": \"Use NO_DYNAMIC_PROPERTIES for Closure\",\n      \"changes\": \"Removed manual property handler stubs and simplified Closure object handlers; refactored object behavior.\",\n      \"relevance\": \"Touched Zend/zend_closures.c near object handlers; less direct but relevant to object lifecycle changes that interact with free/handler behavior.\"\n    },\n    {\n      \"hash\": \"814a932\",\n      \"message\": \"Add ZEND_ACC_NOT_SERIALIZABLE flag\",\n      \"changes\": \"Adjusted Closure registration: removed custom serialize/unserialize handlers and ensured closure_handlers.free_obj = zend_closure_free_storage.\",\n      \"relevance\": \"Ensures zend_closure_free_storage is used as the free handler; reinforces that recently-changed free logic is invoked at object destruction.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The risky change was introduced by commit c0b1bdc which altered the closure free path to release closure->func.common.function_name for certain internal trampoline-created closures without ensuring proper ownership/refcounting when the name was stored. This mismatch caused zend_string_release to act on a string that had already been freed (use-after-free).\",\n  \"fix_hints\": \"History shows the free logic was changed to release function_name but there is no corresponding change ensuring the closure owns (addrefs) that string at creation time. The fix should restore correct ownership or avoid double-release (either addref on creation or avoid release on free).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure the closure takes ownership by incrementing the function_name refcount when the closure is created (zend_string_addref or zend_string_copy), and keep the existing zend_string_release in free_storage.\",\n      \"reasoning\": \"The free code expects to release the string; making the closure own a reference ensures release is balanced. This aligns with the commit intent (keep the name for trampolines) and fixes double-free/use-after-free.\",\n      \"trade_offs\": \"Small increase in memory/refcount operations; must audit all creation paths to addref exactly once to avoid leaks or further double-frees.\"\n    },\n    {\n      \"approach\": \"Avoid releasing closure->func.common.function_name in zend_closure_free_storage and instead only release names that were explicitly allocated/copied for the closure (track ownership via a flag or by copying names on creation).\",\n      \"reasoning\": \"If closures sometimes reference shared/interned names, unconditional release can double-free. Only releasing when closure actually owns the string prevents that.\",\n      \"trade_offs\": \"Requires adding ownership bookkeeping (flag, separate field) and auditing all call sites; risk of introducing memory leaks if ownership marking is incorrect.\"\n    },\n    {\n      \"approach\": \"Null out closure->func.common.function_name immediately after releasing it and add defensive checks to avoid releasing immutable/interned strings (or check refcount before release).\",\n      \"reasoning\": \"Defensive measures reduce chance of double release/read-after-free during destructor runs and can mitigate crashes while a proper ownership model is implemented.\",\n      \"trade_offs\": \"Only a mitigation \u2014 does not address root cause. Checking refcounts can be racy in concurrent contexts; nulling after free is good practice but must be done consistently.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "Zend/zend_closures.c",
+      "function_analyzed": "zend_closure_free_storage",
+      "relevant_commits": [
+        {
+          "hash": "c0b1bdc",
+          "message": "Fixed bug #80929",
+          "changes": "In zend_closure_free_storage: call destroy_op_array for user functions; for closures created from trampolines, call zend_string_release on closure->func.common.function_name.",
+          "relevance": "Directly modified the free path and added zend_string_release on function_name \u2014 likely introduced incorrect ownership/releases that lead to the use-after-free."
+        },
+        {
+          "hash": "008bfcc",
+          "message": "Use NO_DYNAMIC_PROPERTIES for Closure",
+          "changes": "Removed manual property handler stubs and simplified Closure object handlers; refactored object behavior.",
+          "relevance": "Touched Zend/zend_closures.c near object handlers; less direct but relevant to object lifecycle changes that interact with free/handler behavior."
+        },
+        {
+          "hash": "814a932",
+          "message": "Add ZEND_ACC_NOT_SERIALIZABLE flag",
+          "changes": "Adjusted Closure registration: removed custom serialize/unserialize handlers and ensured closure_handlers.free_obj = zend_closure_free_storage.",
+          "relevance": "Ensures zend_closure_free_storage is used as the free handler; reinforces that recently-changed free logic is invoked at object destruction."
+        }
+      ],
+      "vulnerability_origin": "The risky change was introduced by commit c0b1bdc which altered the closure free path to release closure->func.common.function_name for certain internal trampoline-created closures without ensuring proper ownership/refcounting when the name was stored. This mismatch caused zend_string_release to act on a string that had already been freed (use-after-free).",
+      "fix_hints": "History shows the free logic was changed to release function_name but there is no corresponding change ensuring the closure owns (addrefs) that string at creation time. The fix should restore correct ownership or avoid double-release (either addref on creation or avoid release on free).",
+      "fix_suggestions": [
+        {
+          "approach": "Ensure the closure takes ownership by incrementing the function_name refcount when the closure is created (zend_string_addref or zend_string_copy), and keep the existing zend_string_release in free_storage.",
+          "reasoning": "The free code expects to release the string; making the closure own a reference ensures release is balanced. This aligns with the commit intent (keep the name for trampolines) and fixes double-free/use-after-free.",
+          "trade_offs": "Small increase in memory/refcount operations; must audit all creation paths to addref exactly once to avoid leaks or further double-frees."
+        },
+        {
+          "approach": "Avoid releasing closure->func.common.function_name in zend_closure_free_storage and instead only release names that were explicitly allocated/copied for the closure (track ownership via a flag or by copying names on creation).",
+          "reasoning": "If closures sometimes reference shared/interned names, unconditional release can double-free. Only releasing when closure actually owns the string prevents that.",
+          "trade_offs": "Requires adding ownership bookkeeping (flag, separate field) and auditing all call sites; risk of introducing memory leaks if ownership marking is incorrect."
+        },
+        {
+          "approach": "Null out closure->func.common.function_name immediately after releasing it and add defensive checks to avoid releasing immutable/interned strings (or check refcount before release).",
+          "reasoning": "Defensive measures reduce chance of double release/read-after-free during destructor runs and can mitigate crashes while a proper ownership model is implemented.",
+          "trade_offs": "Only a mitigation \u2014 does not address root cause. Checking refcounts can be racy in concurrent contexts; nulling after free is good practice but must be done consistently."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 17243,
+      "output_tokens": 2160
+    },
+    "timing": {
+      "start_time": 1769155697.991934,
+      "end_time": 1769156561.1043007,
+      "duration": 863.1123666763306
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend/zend_closures.c: zend_closure_free_storage can end up invoking zend_string_release on a function name that has already been freed, causing subsequent reads of freed heap memory (seen via zend_string_release and zend_objects_store_del). This use-after-free during closure/object destruction can ca",
+      "total_steps": 2,
+      "total_duration": 863.1123666763306,
+      "total_input_tokens": 17243,
+      "total_output_tokens": 2160,
+      "total_cost": 0.003566575,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"An ownership/refcount mismatch: zend_closure_free_storage unconditionally releases closure->func.common.function_name for certain internal/trampoline-created closures, but the closure did not always take a reference to that zend_string at creation time. This led to zend_string_release operating on a string that had already been freed (use-after-free).\",\n  \"fix_approach\": \"I made a minimal, targeted change in Zend/zend_closures.c so that when an internal function is wrapped into a closure (the internal-function branch in zend_create_closure_ex), we take ownership of the function name if appropriate. Concretely, after wrapping the internal handler (when we set closure->func.internal_function.handler = zend_closure_internal_handler), we increment the function_name reference count (zend_string_addref) for the cases that later unconditionally release the string in zend_closure_free_storage. This balances the release in the destructor and prevents double-free/use-after-free. The change is guarded and only increments the refcount when a function_name is present and when the closure wrapping logic indicates the special trampoline/internal handler case.\"\n  ,\"files_modified\": [\"Zend/zend_closures.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "An ownership/refcount mismatch: zend_closure_free_storage unconditionally releases closure->func.common.function_name for certain internal/trampoline-created closures, but the closure did not always take a reference to that zend_string at creation time. This led to zend_string_release operating on a string that had already been freed (use-after-free).",
+      "fix_approach": "I made a minimal, targeted change in Zend/zend_closures.c so that when an internal function is wrapped into a closure (the internal-function branch in zend_create_closure_ex), we take ownership of the function name if appropriate. Concretely, after wrapping the internal handler (when we set closure->func.internal_function.handler = zend_closure_internal_handler), we increment the function_name reference count (zend_string_addref) for the cases that later unconditionally release the string in zend_closure_free_storage. This balances the release in the destructor and prevents double-free/use-after-free. The change is guarded and only increments the refcount when a function_name is present and when the closure wrapping logic indicates the special trampoline/internal handler case.",
+      "files_modified": [
+        "Zend/zend_closures.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 383920,
+      "output_tokens": 7270
+    },
+    "timing": {
+      "start_time": 1769156561.1081386,
+      "end_time": 1769156778.9924471,
+      "duration": 217.88430857658386
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in Zend/zend_closures.c: zend_closure_free_storage can end up invoking zend_string_release on a function name that has already been freed, causing subsequent reads of freed heap memory (seen via zend_string_release and zend_objects_store_del). This use-after-free during closure/object destruction can ca",
+      "total_steps": 14,
+      "total_duration": 217.88430857658386,
+      "total_input_tokens": 383920,
+      "total_output_tokens": 7270,
+      "total_cost": 0.0157752,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 470160,
+    "output_tokens": 15535
+  },
+  "timing": {
+    "total_duration": 1393.415432214737
+  }
+}

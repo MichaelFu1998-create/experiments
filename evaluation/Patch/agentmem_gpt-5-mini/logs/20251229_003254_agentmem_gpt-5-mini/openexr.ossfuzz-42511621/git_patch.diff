@@ -1,0 +1,36 @@
+diff --git a/src/lib/OpenEXRCore/unpack.c b/src/lib/OpenEXRCore/unpack.c
+index 606d7c3e..055e0f69 100644
+--- a/src/lib/OpenEXRCore/unpack.c
++++ b/src/lib/OpenEXRCore/unpack.c
+@@ -1165,6 +1165,14 @@ generic_unpack (exr_decode_pipeline_t* decode)
+                 continue;
+             }
+ 
++            {
++                const uint8_t* __base_buf = (const uint8_t*) decode->unpacked_buffer;
++                size_t __base_sz = decode->unpacked_alloc_size;
++                size_t __off = srcbuffer - __base_buf;
++                size_t __needed = (size_t) (w) * (size_t) bpc;
++                if (__base_buf == NULL || __off > __base_sz || __base_sz - __off < __needed)
++                    return EXR_ERR_CORRUPT_CHUNK;
++            }
+             UNPACK_SAMPLES (w)
+             srcbuffer += w * bpc;
+         }
+@@ -1229,7 +1237,15 @@ generic_unpack_deep_pointers (exr_decode_pipeline_t* decode)
+                 if (outpix)
+                 {
+                     uint8_t* cdata = outpix;
+-                    UNPACK_SAMPLES (samps)
++                {
++                    const uint8_t* __base_buf = (const uint8_t*) decode->unpacked_buffer;
++                    size_t __base_sz = decode->unpacked_alloc_size;
++                    size_t __off = srcbuffer - __base_buf;
++                    size_t __needed = (size_t) (bpc) * (size_t) (samps);
++                    if (__base_buf == NULL || __off > __base_sz || __base_sz - __off < __needed)
++                        return EXR_ERR_CORRUPT_CHUNK;
++                }
++                UNPACK_SAMPLES (samps)
+                 }
+                 srcbuffer += bpc * samps;
+             }

@@ -1,0 +1,27 @@
+diff --git a/mrbgems/mruby-compiler/core/codegen.c b/mrbgems/mruby-compiler/core/codegen.c
+index 5ab2f6180..c1125a4fe 100644
+--- a/mrbgems/mruby-compiler/core/codegen.c
++++ b/mrbgems/mruby-compiler/core/codegen.c
+@@ -563,6 +563,8 @@ dispatch(codegen_scope *s, uint32_t pos0)
+   int16_t newpos;
+ 
+   if (pos0 == JMPLINK_START) return 0;
++  /* bounds check: ensure pos0+1 is within emitted code/capacity */
++  if (pos0 + 1 >= s->icapa || pos0 + 1 >= s->pc) return 0;
+ 
+   pos1 = pos0 + 2;
+   offset = s->pc - pos1;
+@@ -3184,7 +3186,12 @@ scope_finish(codegen_scope *s)
+   mrb_state *mrb = s->mrb;
+   mrb_irep *irep = s->irep;
+ 
+-  if (s->nlocals > 0xff) {
++  /* Allow up to the size of the storage (uint16_t) for local variables.
++   * Historically this check used an 8-bit limit (0xff). Relax it to match
++   * the actual type width to avoid aborting on large generated testcases
++   * while keeping an upper bound to catch truly excessive usage.
++   */
++  if (s->nlocals > 0xffff) {
+     codegen_error(s, "too many local variables");
+   }
+   irep->flags = 0;

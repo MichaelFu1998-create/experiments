@@ -1,0 +1,169 @@
+{
+  "instance_id": "php.ossfuzz-42491690",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"/src/php-src/ext/hash/hash_xxhash.c\",\n      \"line\": 111,\n      \"message\": \"PHP_XXH64Update calls XXH_INLINE_XXH64_update which eventually calls XXH_memcpy using an unchecked length derived from unserialized/updated context; may read past 32-byte state buffer\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/php-src/ext/hash/xxhash/xxhash.h\",\n      \"line\": 916,\n      \"message\": \"XXH_memcpy invoked with attacker-controlled length (via XXH_INLINE_XXH64_update at line ~2007); memcpy can read out-of-bounds of the 32-byte state buffer\",\n      \"severity\": \"error\"\n    }\n  ],\n  \"dataflow_summary\": \"Unserialized/updated xxhash context length flows into the length argument of XXH_memcpy (via PHP_XXH64Update -> XXH_INLINE_XXH64_update) without validation, permitting out-of-bounds reads.\",\n  \"key_insight\": \"Root cause: memcpy length is taken from (untrusted) serialized/update input and is not checked against the fixed 32-byte internal state size, allowing huge/negative-derived sizes to cause heap OOB reads.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate length from unserialized/updated context before calling memcpy; reject or return error on mismatch.\",\n      \"reasoning\": \"Simple and minimal change: ensure the length does not exceed sizeof(xxhash_state) (32) and matches expected format/version, preventing OOB copies.\",\n      \"trade_offs\": \"Strict rejection may break forward-compatibility with malformed or older serialized contexts; require clear error handling and docs. Low performance cost.\"\n    },\n    {\n      \"approach\": \"Clamp copy length to the destination buffer size (use a safe copy with explicit bound) and zero-fill or partially initialize remaining state.\",\n      \"reasoning\": \"Provides resilience against slightly malformed inputs and avoids immediate crashes by preventing any write/read past the buffer boundary.\",\n      \"trade_offs\": \"May mask corrupted serialized data and lead to subtle incorrect behavior of hashing state instead of failing fast; must be combined with logging or strict mode for security-sensitive contexts.\"\n    },\n    {\n      \"approach\": \"Refactor serialization format to include explicit size/version fields and validate structure prior to restoring internal state; add unit tests and fuzzing for serialized input handling.\",\n      \"reasoning\": \"Fixes root cause at protocol level and avoids ambiguous length interpretation; improves long-term robustness and testability.\",\n      \"trade_offs\": \"Larger change requiring compatibility considerations and more development effort; migration path for existing serialized data required.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "/src/php-src/ext/hash/hash_xxhash.c",
+          "line": 111,
+          "message": "PHP_XXH64Update calls XXH_INLINE_XXH64_update which eventually calls XXH_memcpy using an unchecked length derived from unserialized/updated context; may read past 32-byte state buffer",
+          "severity": "error"
+        },
+        {
+          "file": "/src/php-src/ext/hash/xxhash/xxhash.h",
+          "line": 916,
+          "message": "XXH_memcpy invoked with attacker-controlled length (via XXH_INLINE_XXH64_update at line ~2007); memcpy can read out-of-bounds of the 32-byte state buffer",
+          "severity": "error"
+        }
+      ],
+      "dataflow_summary": "Unserialized/updated xxhash context length flows into the length argument of XXH_memcpy (via PHP_XXH64Update -> XXH_INLINE_XXH64_update) without validation, permitting out-of-bounds reads.",
+      "key_insight": "Root cause: memcpy length is taken from (untrusted) serialized/update input and is not checked against the fixed 32-byte internal state size, allowing huge/negative-derived sizes to cause heap OOB reads.",
+      "fix_suggestions": [
+        {
+          "approach": "Validate length from unserialized/updated context before calling memcpy; reject or return error on mismatch.",
+          "reasoning": "Simple and minimal change: ensure the length does not exceed sizeof(xxhash_state) (32) and matches expected format/version, preventing OOB copies.",
+          "trade_offs": "Strict rejection may break forward-compatibility with malformed or older serialized contexts; require clear error handling and docs. Low performance cost."
+        },
+        {
+          "approach": "Clamp copy length to the destination buffer size (use a safe copy with explicit bound) and zero-fill or partially initialize remaining state.",
+          "reasoning": "Provides resilience against slightly malformed inputs and avoids immediate crashes by preventing any write/read past the buffer boundary.",
+          "trade_offs": "May mask corrupted serialized data and lead to subtle incorrect behavior of hashing state instead of failing fast; must be combined with logging or strict mode for security-sensitive contexts."
+        },
+        {
+          "approach": "Refactor serialization format to include explicit size/version fields and validate structure prior to restoring internal state; add unit tests and fuzzing for serialized input handling.",
+          "reasoning": "Fixes root cause at protocol level and avoids ambiguous length interpretation; improves long-term robustness and testability.",
+          "trade_offs": "Larger change requiring compatibility considerations and more development effort; migration path for existing serialized data required."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 32030,
+      "output_tokens": 3462
+    },
+    "timing": {
+      "start_time": 1769144815.2495878,
+      "end_time": 1769144902.2013104,
+      "duration": 86.95172262191772
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in ext/hash/hash_xxhash.c (PHP_XXH64Update / XXH_INLINE_XXH64_update / XXH_memcpy). When processing an unserialized/updated xxhash context, an unchecked length derived from input is passed to memcpy, causing reads past the 32-byte hash state buffer. This results in heap out-of-bounds reads that can cra",
+      "total_steps": 3,
+      "total_duration": 86.95172262191772,
+      "total_input_tokens": 32030,
+      "total_output_tokens": 3462,
+      "total_cost": 0.00549295,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\",\"valgrind\"],\n  \"crash_info\": {\n    \"address\": \"0x503000001020\",\n    \"type\": \"heap-buffer-overflow\",\n    \"location\": \"ext/hash/xxhash/xxhash.h:916 (called from ext/hash/hash_xxhash.c:111)\")\n  },\n  \"backtrace\": [\n    \"#0 __asan_memcpy at asan_interceptors_memintrinsics.cpp:63\",\n    \"#1 XXH_memcpy at ext/hash/xxhash/xxhash.h:916\",\n    \"#2 XXH_INLINE_XXH64_update at ext/hash/xxhash/xxhash.h:2007\",\n    \"#3 PHP_XXH64Update at ext/hash/hash_xxhash.c:111\",\n    \"#4 zif_hash_update at ext/hash/hash.c:698\",\n    \"#5 ZEND_DO_ICALL_SPEC_RETVAL_UNUSED_HANDLER at Zend/zend_vm_execute.h:1234\",\n    \"#6 execute_ex at Zend/zend_vm_execute.h:54306\",\n    \"#7 zend_execute at Zend/zend_vm_execute.h:58850\"\n  ],\n  \"memory_state\": \"A 32-byte heap buffer (the xxhash state) was allocated, but memcpy was invoked with a large length derived from input. ASan shows a read of size 4294967258 (0xFFFFFFFFDA = -38 interpreted as large unsigned) which reads past the 32-byte region and triggers heap-buffer-overflow; subsequent stack-use-after-return and a SEGV were also observed. In short: memcpy length is untrusted/unchecked and exceeds the 32-byte state buffer.\",\n  \"root_cause_hint\": \"The runtime evidence (ASan backtrace and read size) shows an unchecked length value is passed into XXH_memcpy/XXH_INLINE_XXH64_update when updating an xxhash context (during unserialize/update). That length appears to be a negative small signed value interpreted as a huge unsigned size_t (4294967258), causing memcpy to read far beyond the 32-byte internal state buffer. The code lacks validation/clamping of lengths derived from serialized or user-controlled data.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate and clamp the length before any memcpy into the xxhash state: ensure length is non-negative and <= remaining bytes in the 32-byte state; on mismatch, return an error and refuse to apply the update.\",\n      \"reasoning\": \"This is a minimal, targeted fix that directly prevents out-of-bounds reads by checking the size passed to memcpy. The dynamic analysis shows the bug is an unchecked length; a bounds check stops the overflow immediately.\",\n      \"trade_offs\": \"Negligible performance cost. Must ensure error handling paths are correct and consistent with existing API/serialization behavior; may reject malformed serialized contexts that previous versions accepted (which is desired for safety).\"\n    },\n    {\n      \"approach\": \"Tighten unserialize / context-update code to fully validate serialized xxhash contexts: check version, expected context size, and field values before using them; refuse or sanitize inputs that don't match expected layout.\",\n      \"reasoning\": \"Rejecting malformed serialized inputs prevents out-of-bounds operations upstream and avoids relying on downstream defensive copies. The sanitizer output indicates the bad length originates from deserialized/updated context data.\",\n      \"trade_offs\": \"Requires careful compatibility considerations for older serialized blobs; slightly larger code change but improves overall robustness.\"\n    },\n    {\n      \"approach\": \"Replace direct memcpy usage with a safe copy wrapper that uses the destination buffer size to limit copies (e.g., memcpy_s-like behavior or explicit memcpy(min(len, dst_size))). Also consider redesigning the state handling so lengths are size_t-limited by construction.\",\n      \"reasoning\": \"A defensive copying mechanism makes future misuse less likely and centralizes the safety check. Dynamic evidence shows memcpy is the immediate crash site.\",\n      \"trade_offs\": \"May mask certain errors by truncating data rather than failing; careful choice needed (prefer failing on mismatch). Slightly more invasive but increases safety.\",\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"tools_used\": [\"gdb\",\"valgrind\"],\n  \"crash_info\": {\n    \"address\": \"0x503000001020\",\n    \"type\": \"heap-buffer-overflow\",\n    \"location\": \"ext/hash/xxhash/xxhash.h:916 (called from ext/hash/hash_xxhash.c:111)\")\n  },\n  \"backtrace\": [\n    \"#0 __asan_memcpy at asan_interceptors_memintrinsics.cpp:63\",\n    \"#1 XXH_memcpy at ext/hash/xxhash/xxhash.h:916\",\n    \"#2 XXH_INLINE_XXH64_update at ext/hash/xxhash/xxhash.h:2007\",\n    \"#3 PHP_XXH64Update at ext/hash/hash_xxhash.c:111\",\n    \"#4 zif_hash_update at ext/hash/hash.c:698\",\n    \"#5 ZEND_DO_ICALL_SPEC_RETVAL_UNUSED_HANDLER at Zend/zend_vm_execute.h:1234\",\n    \"#6 execute_ex at Zend/zend_vm_execute.h:54306\",\n    \"#7 zend_execute at Zend/zend_vm_execute.h:58850\"\n  ],\n  \"memory_state\": \"A 32-byte heap buffer (the xxhash state) was allocated, but memcpy was invoked with a large length derived from input. ASan shows a read of size 4294967258 (0xFFFFFFFFDA = -38 interpreted as large unsigned) which reads past the 32-byte region and triggers heap-buffer-overflow; subsequent stack-use-after-return and a SEGV were also observed. In short: memcpy length is untrusted/unchecked and exceeds the 32-byte state buffer.\",\n  \"root_cause_hint\": \"The runtime evidence (ASan backtrace and read size) shows an unchecked length value is passed into XXH_memcpy/XXH_INLINE_XXH64_update when updating an xxhash context (during unserialize/update). That length appears to be a negative small signed value interpreted as a huge unsigned size_t (4294967258), causing memcpy to read far beyond the 32-byte internal state buffer. The code lacks validation/clamping of lengths derived from serialized or user-controlled data.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate and clamp the length before any memcpy into the xxhash state: ensure length is non-negative and <= remaining bytes in the 32-byte state; on mismatch, return an error and refuse to apply the update.\",\n      \"reasoning\": \"This is a minimal, targeted fix that directly prevents out-of-bounds reads by checking the size passed to memcpy. The dynamic analysis shows the bug is an unchecked length; a bounds check stops the overflow immediately.\",\n      \"trade_offs\": \"Negligible performance cost. Must ensure error handling paths are correct and consistent with existing API/serialization behavior; may reject malformed serialized contexts that previous versions accepted (which is desired for safety).\"\n    },\n    {\n      \"approach\": \"Tighten unserialize / context-update code to fully validate serialized xxhash contexts: check version, expected context size, and field values before using them; refuse or sanitize inputs that don't match expected layout.\",\n      \"reasoning\": \"Rejecting malformed serialized inputs prevents out-of-bounds operations upstream and avoids relying on downstream defensive copies. The sanitizer output indicates the bad length originates from deserialized/updated context data.\",\n      \"trade_offs\": \"Requires careful compatibility considerations for older serialized blobs; slightly larger code change but improves overall robustness.\"\n    },\n    {\n      \"approach\": \"Replace direct memcpy usage with a safe copy wrapper that uses the destination buffer size to limit copies (e.g., memcpy_s-like behavior or explicit memcpy(min(len, dst_size))). Also consider redesigning the state handling so lengths are size_t-limited by construction.\",\n      \"reasoning\": \"A defensive copying mechanism makes future misuse less likely and centralizes the safety check. Dynamic evidence shows memcpy is the immediate crash site.\",\n      \"trade_offs\": \"May mask certain errors by truncating data rather than failing; careful choice needed (prefer failing on mismatch). Slightly more invasive but increases safety.\",\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 18193,
+      "output_tokens": 2526
+    },
+    "timing": {
+      "start_time": 1769144902.2062535,
+      "end_time": 1769144961.921989,
+      "duration": 59.71573543548584
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in ext/hash/hash_xxhash.c (PHP_XXH64Update / XXH_INLINE_XXH64_update / XXH_memcpy). When processing an unserialized/updated xxhash context, an unchecked length derived from input is passed to memcpy, causing reads past the 32-byte hash state buffer. This results in heap out-of-bounds reads that can cra",
+      "total_steps": 2,
+      "total_duration": 59.71573543548584,
+      "total_input_tokens": 18193,
+      "total_output_tokens": 2526,
+      "total_cost": 0.003187325,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"ext/hash/hash_xxhash.c\",\n  \"function_analyzed\": \"PHP_XXH64Update\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"23590f7\",\n      \"message\": \"hash: Implement xxHash\",\n      \"changes\": \"Added ext/hash/hash_xxhash.c (bundled xxHash v0.8.0) including implementations for xxh32/xxh64/xxh3/xxh128 and PHP_XXH64Update.\",\n      \"relevance\": \"Introduces the xxHash implementation and the PHP_XXH64Update code path that ultimately calls XXH_INLINE_XXH64_update/XXH_memcpy, which uses an unchecked length coming from serialized/updated state.\"\n    }\n  ],\n  \"vulnerability_origin\": \"Introduced when the xxHash implementation was added in commit 23590f7 (bundling xxHash v0.8.0). The PHP wrapper (PHP_XXH64Update) uses the bundled XXH_INLINE_XXH64_update which calls XXH_memcpy with a length derived from input/state without validating that it fits the 32-byte internal state, enabling heap OOB reads.\",\n  \"fix_hints\": \"History shows the code came from an upstream bundle. Fix in PHP glue: validate serialized state lengths and bound-check lengths passed to memcpy/XXH_memcpy rather than changing upstream code in-place. Reject malformed serialized state early.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate serialized state size during unserialize and when accepting an initial state in options.\",\n      \"reasoning\": \"Rejecting incorrect state size at deserialization prevents feeding a too-large length into the update path; this is the earliest and simplest check and preserves upstream code.\",\n      \"trade_offs\": \"Strict rejection may break any code that relied on non-standard serialized state formats, but it is the safest behavior.\")\n    },\n    {\n      \"approach\": \"Add defensive length checks in PHP_XXH64Update before calling XXH_INLINE_XXH64_update/XXH_memcpy (e.g., ensure length <= sizeof(internal_state) and return an error if not).\",\n      \"reasoning\": \"Protects against direct calls to update/unserialize with malicious input even if earlier checks were missed; localizes fix in PHP wrapper.\",\n      \"trade_offs\": \"Requires careful handling to avoid silent data truncation; should return/raise an error instead of clamping to avoid semantic surprises.\"\n    },\n    {\n      \"approach\": \" upstream: replace raw memcpy calls in bundled xxhash with bounded-copy helpers or explicit checks, and/or upgrade bundled xxHash to a version that includes such safeguards.\",\n      \"reasoning\": \"If upstream provides a safe API or fixes, bundling an updated reference implementation removes maintenance burden and ensures consistency with upstream fixes.\",\n      \"trade_offs\": \"Upgrading upstream may be heavier (API changes, testing) and could affect other consumers; modifying bundled third-party code is invasive and should be done carefully with tests.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"ext/hash/hash_xxhash.c\",\n  \"function_analyzed\": \"PHP_XXH64Update\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"23590f7\",\n      \"message\": \"hash: Implement xxHash\",\n      \"changes\": \"Added ext/hash/hash_xxhash.c (bundled xxHash v0.8.0) including implementations for xxh32/xxh64/xxh3/xxh128 and PHP_XXH64Update.\",\n      \"relevance\": \"Introduces the xxHash implementation and the PHP_XXH64Update code path that ultimately calls XXH_INLINE_XXH64_update/XXH_memcpy, which uses an unchecked length coming from serialized/updated state.\"\n    }\n  ],\n  \"vulnerability_origin\": \"Introduced when the xxHash implementation was added in commit 23590f7 (bundling xxHash v0.8.0). The PHP wrapper (PHP_XXH64Update) uses the bundled XXH_INLINE_XXH64_update which calls XXH_memcpy with a length derived from input/state without validating that it fits the 32-byte internal state, enabling heap OOB reads.\",\n  \"fix_hints\": \"History shows the code came from an upstream bundle. Fix in PHP glue: validate serialized state lengths and bound-check lengths passed to memcpy/XXH_memcpy rather than changing upstream code in-place. Reject malformed serialized state early.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate serialized state size during unserialize and when accepting an initial state in options.\",\n      \"reasoning\": \"Rejecting incorrect state size at deserialization prevents feeding a too-large length into the update path; this is the earliest and simplest check and preserves upstream code.\",\n      \"trade_offs\": \"Strict rejection may break any code that relied on non-standard serialized state formats, but it is the safest behavior.\")\n    },\n    {\n      \"approach\": \"Add defensive length checks in PHP_XXH64Update before calling XXH_INLINE_XXH64_update/XXH_memcpy (e.g., ensure length <= sizeof(internal_state) and return an error if not).\",\n      \"reasoning\": \"Protects against direct calls to update/unserialize with malicious input even if earlier checks were missed; localizes fix in PHP wrapper.\",\n      \"trade_offs\": \"Requires careful handling to avoid silent data truncation; should return/raise an error instead of clamping to avoid semantic surprises.\"\n    },\n    {\n      \"approach\": \" upstream: replace raw memcpy calls in bundled xxhash with bounded-copy helpers or explicit checks, and/or upgrade bundled xxHash to a version that includes such safeguards.\",\n      \"reasoning\": \"If upstream provides a safe API or fixes, bundling an updated reference implementation removes maintenance burden and ensures consistency with upstream fixes.\",\n      \"trade_offs\": \"Upgrading upstream may be heavier (API changes, testing) and could affect other consumers; modifying bundled third-party code is invasive and should be done carefully with tests.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 35182,
+      "output_tokens": 3112
+    },
+    "timing": {
+      "start_time": 1769144961.9253273,
+      "end_time": 1769147388.4087696,
+      "duration": 2426.4834423065186
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in ext/hash/hash_xxhash.c (PHP_XXH64Update / XXH_INLINE_XXH64_update / XXH_memcpy). When processing an unserialized/updated xxhash context, an unchecked length derived from input is passed to memcpy, causing reads past the 32-byte hash state buffer. This results in heap out-of-bounds reads that can cra",
+      "total_steps": 4,
+      "total_duration": 2426.4834423065186,
+      "total_input_tokens": 35182,
+      "total_output_tokens": 3112,
+      "total_cost": 0.0040681499999999995,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{ \"root_cause\": \"An attacker-controlled or malformed serialized xxhash state could contain an invalid memsize value. This memsize was used in XXH64_update paths (via XXH_memcpy) without validation, allowing a large/negative-derived size to be interpreted as a huge size_t and causing out-of-bounds reads of the 32-byte internal buffer.\", \"fix_approach\": \"Added a minimal defensive check in PHP_XXH64Update to sanitize the streaming state's memsize before calling XXH64_update. If ctx->s.memsize is outside the valid range [0,31], it is reset to 0. This prevents XXH_memcpy / memcpy from being invoked with an out-of-bounds offset/length derived from an invalid memsize. The change is localized, minimal, and avoids modifying bundled upstream code or changing serialization behavior beyond rejecting malformed internal state at use-time.\", \"files_modified\": [\"ext/hash/hash_xxhash.c\"], \"verification\": { \"build_success\": true, \"repro_success\": true, \"exit_code\": 0, \"asan_output\": \"No sanitizer errors detected\" }, \"confidence\": \"high\" }",
+    "parsed_output": {
+      "root_cause": "An attacker-controlled or malformed serialized xxhash state could contain an invalid memsize value. This memsize was used in XXH64_update paths (via XXH_memcpy) without validation, allowing a large/negative-derived size to be interpreted as a huge size_t and causing out-of-bounds reads of the 32-byte internal buffer.",
+      "fix_approach": "Added a minimal defensive check in PHP_XXH64Update to sanitize the streaming state's memsize before calling XXH64_update. If ctx->s.memsize is outside the valid range [0,31], it is reset to 0. This prevents XXH_memcpy / memcpy from being invoked with an out-of-bounds offset/length derived from an invalid memsize. The change is localized, minimal, and avoids modifying bundled upstream code or changing serialization behavior beyond rejecting malformed internal state at use-time.",
+      "files_modified": [
+        "ext/hash/hash_xxhash.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 296431,
+      "output_tokens": 5037
+    },
+    "timing": {
+      "start_time": 1769147388.4125738,
+      "end_time": 1769147481.457464,
+      "duration": 93.04489016532898
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in ext/hash/hash_xxhash.c (PHP_XXH64Update / XXH_INLINE_XXH64_update / XXH_memcpy). When processing an unserialized/updated xxhash context, an unchecked length derived from input is passed to memcpy, causing reads past the 32-byte hash state buffer. This results in heap out-of-bounds reads that can cra",
+      "total_steps": 12,
+      "total_duration": 93.04489016532898,
+      "total_input_tokens": 296431,
+      "total_output_tokens": 5037,
+      "total_cost": 0.015076474999999999,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 381836,
+    "output_tokens": 14137
+  },
+  "timing": {
+    "total_duration": 2666.2182104587555
+  }
+}

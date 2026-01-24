@@ -1,0 +1,22 @@
+diff --git a/error.c b/error.c
+index 1b4fe767..576a66b9 100644
+--- a/error.c
++++ b/error.c
+@@ -181,6 +181,17 @@ xmlParserPrintFileContextInternal(xmlParserInputPtr input ,
+     if ((input == NULL) || (input->cur == NULL))
+         return;
+ 
++    /* Ensure the input buffer pointers look valid before dereferencing.
++     * The parser input buffer may have been reallocated/freed during
++     * parsing (e.g. when loading entities). In that case reading
++     * from input->cur/... can cause a heap-use-after-free. Refuse to
++     * print context if base/end are NULL or cur is out of range.
++     */
++    if (input->base == NULL || input->end == NULL)
++        return;
++    if (input->cur < input->base || input->cur >= input->end)
++        return;
++
+     cur = input->cur;
+     base = input->base;
+     /* skip backwards over any end-of-lines */

@@ -1,0 +1,198 @@
+{
+  "instance_id": "php.ossfuzz-42491908",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"/src/php-src/ext/hash/xxhash/xxhash.h\",\n      \"line\": 916,\n      \"message\": \"XXH_memcpy calls memcpy without checking for overlapping source/destination ranges (memcpy-param-overlap reported by ASan).\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/php-src/ext/hash/xxhash/xxhash.h\",\n      \"line\": 1468,\n      \"message\": \"XXH_INLINE_XXH32_update performs internal buffer copies that can pass overlapping ranges to XXH_memcpy, leading to undefined behavior and heap-buffer-overflow.\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/php-src/ext/hash/hash_xxhash.c\",\n      \"line\": 61,\n      \"message\": \"PHP_XXH32Update calls XXH_INLINE_XXH32_update which can trigger overlapping memcpy when update/unserialize operate on buffers that alias.\",\n      \"severity\": \"error\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"ASan and CodeQL point to memcpy in XXH_memcpy (xxhash.h) being invoked with overlapping source and destination due to buffer management in XXH32 update path (XXH_INLINE_XXH32_update called from PHP_XXH32Update). The root cause is unsafe assumptions about non-overlapping ranges.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Replace memcpy with memmove (or a safe copy that handles overlap) inside XXH_memcpy when ranges may overlap.\",\n      \"reasoning\": \"memmove is defined for overlapping ranges and will eliminate undefined behavior with minimal code changes.\",\n      \"trade_offs\": \"Slight performance cost compared to memcpy on non-overlapping copies; acceptable for correctness. Verify performance impact on hot code paths.\">\n    },\n    {\n      \"approach\": \"Add explicit checks and logic in XXH_INLINE_XXH32_update to ensure source and destination ranges are non-overlapping before calling XXH_memcpy; if overlap detected, use a safe copy or reorder operations.\",\n      \"reasoning\": \"Addresses root cause at the update logic level and avoids changing global behavior of XXH_memcpy for other callers.\",\n      \"trade_offs\": \"More complex code and branching; requires careful reasoning about pointer arithmetic and tests for all code paths.\">\n    },\n    {\n      \"approach\": \"Refactor buffer management to avoid aliasing: ensure updates operate on a separate temporary buffer or grow/shift internal buffer safely so that copies never overlap.\",\n      \"reasoning\": \"Prevents overlap by construction and is the most robust long-term fix.\",\n      \"trade_offs\": \"Larger refactor, potential memory overhead, and changes to behavior/performance; requires more testing.\">\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"/src/php-src/ext/hash/xxhash/xxhash.h\",\n      \"line\": 916,\n      \"message\": \"XXH_memcpy calls memcpy without checking for overlapping source/destination ranges (memcpy-param-overlap reported by ASan).\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/php-src/ext/hash/xxhash/xxhash.h\",\n      \"line\": 1468,\n      \"message\": \"XXH_INLINE_XXH32_update performs internal buffer copies that can pass overlapping ranges to XXH_memcpy, leading to undefined behavior and heap-buffer-overflow.\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/php-src/ext/hash/hash_xxhash.c\",\n      \"line\": 61,\n      \"message\": \"PHP_XXH32Update calls XXH_INLINE_XXH32_update which can trigger overlapping memcpy when update/unserialize operate on buffers that alias.\",\n      \"severity\": \"error\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"ASan and CodeQL point to memcpy in XXH_memcpy (xxhash.h) being invoked with overlapping source and destination due to buffer management in XXH32 update path (XXH_INLINE_XXH32_update called from PHP_XXH32Update). The root cause is unsafe assumptions about non-overlapping ranges.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Replace memcpy with memmove (or a safe copy that handles overlap) inside XXH_memcpy when ranges may overlap.\",\n      \"reasoning\": \"memmove is defined for overlapping ranges and will eliminate undefined behavior with minimal code changes.\",\n      \"trade_offs\": \"Slight performance cost compared to memcpy on non-overlapping copies; acceptable for correctness. Verify performance impact on hot code paths.\">\n    },\n    {\n      \"approach\": \"Add explicit checks and logic in XXH_INLINE_XXH32_update to ensure source and destination ranges are non-overlapping before calling XXH_memcpy; if overlap detected, use a safe copy or reorder operations.\",\n      \"reasoning\": \"Addresses root cause at the update logic level and avoids changing global behavior of XXH_memcpy for other callers.\",\n      \"trade_offs\": \"More complex code and branching; requires careful reasoning about pointer arithmetic and tests for all code paths.\">\n    },\n    {\n      \"approach\": \"Refactor buffer management to avoid aliasing: ensure updates operate on a separate temporary buffer or grow/shift internal buffer safely so that copies never overlap.\",\n      \"reasoning\": \"Prevents overlap by construction and is the most robust long-term fix.\",\n      \"trade_offs\": \"Larger refactor, potential memory overhead, and changes to behavior/performance; requires more testing.\">\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 25480,
+      "output_tokens": 2144
+    },
+    "timing": {
+      "start_time": 1769150670.1747322,
+      "end_time": 1769150738.3077376,
+      "duration": 68.1330053806305
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nA memcpy-parameter-overlap occurs in the XXH32 update path (XXH_memcpy / XXH_INLINE_XXH32_update called from PHP_XXH32Update in ext/hash/hash_xxhash.c / xxhash.h), causing memcpy to be invoked on overlapping source and destination ranges. This leads to undefined behavior and a heap-buffer-overflow read, resulting in memory",
+      "total_steps": 3,
+      "total_duration": 68.1330053806305,
+      "total_input_tokens": 25480,
+      "total_output_tokens": 2144,
+      "total_cost": 0.003745,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\", \"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x7f6a5826332c\",\n    \"type\": \"memcpy-param-overlap (ASan) causing SEGV; stack-use-after-return reported\",\n    \"location\": \"ext/hash/xxhash/xxhash.h:916 (XXH_memcpy) \u2014 called from ext/hash/hash_xxhash.c:61 (PHP_XXH32Update)\"\n  },\n  \"backtrace\": [\n    \"#0 __asan_memcpy at .../asan_interceptors_memintrinsics.cpp:63\",\n    \"#1 XXH_memcpy at ext/hash/xxhash/xxhash.h:916\",\n    \"#2 XXH_INLINE_XXH32_update at ext/hash/xxhash/xxhash.h:1468\",\n    \"#3 PHP_XXH32Update at ext/hash/hash_xxhash.c:61\",\n    \"#4 zif_hash_update at ext/hash/hash.c:698\",\n    \"#5 (zend) ZEND_DO_ICALL_SPEC_RETVAL_UNUSED_HANDLER / execute_ex (vm)\"\n  ],\n  \"memory_state\": \"AddressSanitizer shows overlapping copy ranges when XXH_memcpy is invoked. Example overlap reported: ranges [0x7fa67406347c,0x7fa774063478) and [0x7fa674082058,0x7fa774082054) (ASan reported memcpy-param-overlap). ASan also reported stack-use-after-return at the same memcpy site and a subsequent SEGV inside memmove implementation. Precise allocated sizes for the involved buffers were not available from the limited sanitizer output, but the key issue is overlapping source and destination passed to memcpy.\",\n  \"root_cause_hint\": \"XXH_memcpy (used by XXH_INLINE_XXH32_update and then PHP_XXH32Update) ultimately calls memcpy which has undefined behavior on overlapping source/destination regions. The update/unserialize path in PHP can end up passing overlapping regions (or stale stack pointers) into the xxhash update path, so memcpy operates on overlapping memory leading to memory corruption, stack-use-after-return diagnostics, and eventual SEGV.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Use an overlap-safe copy (memmove) instead of memcpy inside XXH_memcpy or the PHP wrapper when overlap is possible.\",\n      \"reasoning\": \"memmove correctly handles overlapping source and destination; replacing memcpy with memmove (or performing an overlap check and selecting memmove) prevents undefined behavior and immediate crashes with minimal code change.\",\n      \"trade_offs\": \"Slight performance cost for memmove versus memcpy in non-overlapping cases. If xxhash is performance-critical, always switching to memmove may impact throughput; consider conditional path (use memcpy for known non-overlap cases, memmove otherwise).\"\n    },\n    {\n      \"approach\": \"Ensure callers (PHP_XXH32Update / unserialize path) never pass overlapping buffers: copy the input to a temporary buffer (stack or heap) before calling the xxhash update function.\",\n      \"reasoning\": \"Fixes the root cause at the caller side by preventing overlapping input. Keeps xxhash implementation unchanged and preserves memcpy performance when non-overlap is guaranteed.\",\n      \"trade_offs\": \"Additional allocations/copies increase memory usage and CPU overhead. Requires auditing all call sites (including serialization/unserialization) to ensure no other overlap paths remain. More invasive changes in PHP codebase.\"\n    },\n    {\n      \"approach\": \"Add explicit overlap detection inside XXH_memcpy: if the ranges overlap, perform a safe reverse-copy or memmove-like behavior; otherwise call memcpy.\",\n      \"reasoning\": \"Minimizes performance impact by only paying the memmove cost when overlap is detected. Localizes fix within xxhash wrapper and avoids changing public API semantics.\",\n      \"trade_offs\": \"Slight code complexity; must be carefully implemented and tested on all architectures. Detecting overlap requires pointer arithmetic and correct handling of all boundary cases. If overlap is common in workloads, benefit reduced compared to always using memmove.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan"
+      ],
+      "crash_info": {
+        "address": "0x7f6a5826332c",
+        "type": "memcpy-param-overlap (ASan) causing SEGV; stack-use-after-return reported",
+        "location": "ext/hash/xxhash/xxhash.h:916 (XXH_memcpy) \u2014 called from ext/hash/hash_xxhash.c:61 (PHP_XXH32Update)"
+      },
+      "backtrace": [
+        "#0 __asan_memcpy at .../asan_interceptors_memintrinsics.cpp:63",
+        "#1 XXH_memcpy at ext/hash/xxhash/xxhash.h:916",
+        "#2 XXH_INLINE_XXH32_update at ext/hash/xxhash/xxhash.h:1468",
+        "#3 PHP_XXH32Update at ext/hash/hash_xxhash.c:61",
+        "#4 zif_hash_update at ext/hash/hash.c:698",
+        "#5 (zend) ZEND_DO_ICALL_SPEC_RETVAL_UNUSED_HANDLER / execute_ex (vm)"
+      ],
+      "memory_state": "AddressSanitizer shows overlapping copy ranges when XXH_memcpy is invoked. Example overlap reported: ranges [0x7fa67406347c,0x7fa774063478) and [0x7fa674082058,0x7fa774082054) (ASan reported memcpy-param-overlap). ASan also reported stack-use-after-return at the same memcpy site and a subsequent SEGV inside memmove implementation. Precise allocated sizes for the involved buffers were not available from the limited sanitizer output, but the key issue is overlapping source and destination passed to memcpy.",
+      "root_cause_hint": "XXH_memcpy (used by XXH_INLINE_XXH32_update and then PHP_XXH32Update) ultimately calls memcpy which has undefined behavior on overlapping source/destination regions. The update/unserialize path in PHP can end up passing overlapping regions (or stale stack pointers) into the xxhash update path, so memcpy operates on overlapping memory leading to memory corruption, stack-use-after-return diagnostics, and eventual SEGV.",
+      "fix_suggestions": [
+        {
+          "approach": "Use an overlap-safe copy (memmove) instead of memcpy inside XXH_memcpy or the PHP wrapper when overlap is possible.",
+          "reasoning": "memmove correctly handles overlapping source and destination; replacing memcpy with memmove (or performing an overlap check and selecting memmove) prevents undefined behavior and immediate crashes with minimal code change.",
+          "trade_offs": "Slight performance cost for memmove versus memcpy in non-overlapping cases. If xxhash is performance-critical, always switching to memmove may impact throughput; consider conditional path (use memcpy for known non-overlap cases, memmove otherwise)."
+        },
+        {
+          "approach": "Ensure callers (PHP_XXH32Update / unserialize path) never pass overlapping buffers: copy the input to a temporary buffer (stack or heap) before calling the xxhash update function.",
+          "reasoning": "Fixes the root cause at the caller side by preventing overlapping input. Keeps xxhash implementation unchanged and preserves memcpy performance when non-overlap is guaranteed.",
+          "trade_offs": "Additional allocations/copies increase memory usage and CPU overhead. Requires auditing all call sites (including serialization/unserialization) to ensure no other overlap paths remain. More invasive changes in PHP codebase."
+        },
+        {
+          "approach": "Add explicit overlap detection inside XXH_memcpy: if the ranges overlap, perform a safe reverse-copy or memmove-like behavior; otherwise call memcpy.",
+          "reasoning": "Minimizes performance impact by only paying the memmove cost when overlap is detected. Localizes fix within xxhash wrapper and avoids changing public API semantics.",
+          "trade_offs": "Slight code complexity; must be carefully implemented and tested on all architectures. Detecting overlap requires pointer arithmetic and correct handling of all boundary cases. If overlap is common in workloads, benefit reduced compared to always using memmove."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 35913,
+      "output_tokens": 3666
+    },
+    "timing": {
+      "start_time": 1769150738.3124974,
+      "end_time": 1769150840.197545,
+      "duration": 101.88504767417908
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nA memcpy-parameter-overlap occurs in the XXH32 update path (XXH_memcpy / XXH_INLINE_XXH32_update called from PHP_XXH32Update in ext/hash/hash_xxhash.c / xxhash.h), causing memcpy to be invoked on overlapping source and destination ranges. This leads to undefined behavior and a heap-buffer-overflow read, resulting in memory",
+      "total_steps": 4,
+      "total_duration": 101.88504767417908,
+      "total_input_tokens": 35913,
+      "total_output_tokens": 3666,
+      "total_cost": 0.004785525,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"ext/hash/xxhash/xxhash.h\",\n  \"function_analyzed\": \"XXH_INLINE_XXH32_update\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"23590f7c\",\n      \"message\": \"hash: Implement xxHash\",\n      \"changes\": \"Add bundled xxHash v0.8.0 (ext/hash/xxhash/xxhash.h) and PHP glue (ext/hash/hash_xxhash.c)\",\n      \"relevance\": \"Introduces XXH_memcpy and XXH_INLINE_XXH32_update used by PHP_XXH32Update \u2014 origin of memcpy usage that can be called with overlapping buffers.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The bundled xxHash v0.8.0 was added in commit 23590f7c. That import introduced the XXH_memcpy/XXH_INLINE_XXH32_update implementation which uses memcpy and can be invoked on overlapping source/destination ranges from the PHP update/unserialize paths.\",\n  \"fix_hints\": \"History shows the issue stems from bundling upstream code. Fix options: adopt an overlap-safe copy (memmove) in XXH_memcpy or update to a newer upstream xxHash that addresses the behavior; or adjust PHP wrapper so it never calls update with overlapping ranges.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Replace XXH_memcpy's memcpy with memmove (or otherwise ensure overlap-safe copying) in ext/hash/xxhash/xxhash.h.\",\n      \"reasoning\": \"Small, localized change that immediately prevents memcpy-param-overlap undefined behavior. Minimal surface area and low maintenance cost compared to upgrading upstream.\",\n      \"trade_offs\": \"Possible minor performance regression for non-overlapping copies; changes behavior relative to upstream library (document required).\"\n    },\n    {\n      \"approach\": \"Upgrade or patch the bundled xxHash to a newer upstream version that explicitly handles overlap or exposes an overlap-safe API.\",\n      \"reasoning\": \"Keeps behavior aligned with upstream fixes and benefits from other bug fixes or improvements; cleaner long-term maintenance.\",\n      \"trade_offs\": \"Larger change (more code to review/test), potential API/ABI differences and regression risk.\"\n    },\n    {\n      \"approach\": \"Change PHP-side code (PHP_XXH32Update / serialization/unserialize handling) to avoid passing overlapping buffers to the xxHash update path (e.g., copy to a temporary buffer before calling update).\",\n      \"reasoning\": \"Localizes fix to PHP surface and avoids modifying bundled third-party code; ensures callers never create overlap scenarios.\",\n      \"trade_offs\": \"Requires changes in PHP glue and possibly incurs extra allocations/copies and complexity; may miss other callers or future regressions if callers change.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "ext/hash/xxhash/xxhash.h",
+      "function_analyzed": "XXH_INLINE_XXH32_update",
+      "relevant_commits": [
+        {
+          "hash": "23590f7c",
+          "message": "hash: Implement xxHash",
+          "changes": "Add bundled xxHash v0.8.0 (ext/hash/xxhash/xxhash.h) and PHP glue (ext/hash/hash_xxhash.c)",
+          "relevance": "Introduces XXH_memcpy and XXH_INLINE_XXH32_update used by PHP_XXH32Update \u2014 origin of memcpy usage that can be called with overlapping buffers."
+        }
+      ],
+      "vulnerability_origin": "The bundled xxHash v0.8.0 was added in commit 23590f7c. That import introduced the XXH_memcpy/XXH_INLINE_XXH32_update implementation which uses memcpy and can be invoked on overlapping source/destination ranges from the PHP update/unserialize paths.",
+      "fix_hints": "History shows the issue stems from bundling upstream code. Fix options: adopt an overlap-safe copy (memmove) in XXH_memcpy or update to a newer upstream xxHash that addresses the behavior; or adjust PHP wrapper so it never calls update with overlapping ranges.",
+      "fix_suggestions": [
+        {
+          "approach": "Replace XXH_memcpy's memcpy with memmove (or otherwise ensure overlap-safe copying) in ext/hash/xxhash/xxhash.h.",
+          "reasoning": "Small, localized change that immediately prevents memcpy-param-overlap undefined behavior. Minimal surface area and low maintenance cost compared to upgrading upstream.",
+          "trade_offs": "Possible minor performance regression for non-overlapping copies; changes behavior relative to upstream library (document required)."
+        },
+        {
+          "approach": "Upgrade or patch the bundled xxHash to a newer upstream version that explicitly handles overlap or exposes an overlap-safe API.",
+          "reasoning": "Keeps behavior aligned with upstream fixes and benefits from other bug fixes or improvements; cleaner long-term maintenance.",
+          "trade_offs": "Larger change (more code to review/test), potential API/ABI differences and regression risk."
+        },
+        {
+          "approach": "Change PHP-side code (PHP_XXH32Update / serialization/unserialize handling) to avoid passing overlapping buffers to the xxHash update path (e.g., copy to a temporary buffer before calling update).",
+          "reasoning": "Localizes fix to PHP surface and avoids modifying bundled third-party code; ensures callers never create overlap scenarios.",
+          "trade_offs": "Requires changes in PHP glue and possibly incurs extra allocations/copies and complexity; may miss other callers or future regressions if callers change."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 30182,
+      "output_tokens": 2986
+    },
+    "timing": {
+      "start_time": 1769150840.2015295,
+      "end_time": 1769153355.4114606,
+      "duration": 2515.2099311351776
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nA memcpy-parameter-overlap occurs in the XXH32 update path (XXH_memcpy / XXH_INLINE_XXH32_update called from PHP_XXH32Update in ext/hash/hash_xxhash.c / xxhash.h), causing memcpy to be invoked on overlapping source and destination ranges. This leads to undefined behavior and a heap-buffer-overflow read, resulting in memory",
+      "total_steps": 4,
+      "total_duration": 2515.2099311351776,
+      "total_input_tokens": 30182,
+      "total_output_tokens": 2986,
+      "total_cost": 0.0037635499999999996,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"The bundled xxHash implementation used memcpy (XXH_memcpy) for internal buffer copies. In the XXH32 streaming update path, callers (PHP_XXH32Update via PHP hashing APIs) can pass input buffers that overlap the hash state's internal buffers, causing memcpy to be invoked on overlapping source/destination ranges \u2014 undefined behavior that triggered ASan memcpy-param-overlap and heap/stack corruption.\",\n  \"fix_approach\": \"Replaced the internal XXH_memcpy implementation to use memmove instead of memcpy so copies are safe for overlapping regions. This is a minimal, localized change in the bundled xxHash header (ext/hash/xxhash/xxhash.h) to eliminate undefined behavior when overlap occurs. No persistent changes to PHP glue were left in the tree (a temporary defensive attempt was reverted).\",\n  \"files_modified\": [\"ext/hash/xxhash/xxhash.h\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "The bundled xxHash implementation used memcpy (XXH_memcpy) for internal buffer copies. In the XXH32 streaming update path, callers (PHP_XXH32Update via PHP hashing APIs) can pass input buffers that overlap the hash state's internal buffers, causing memcpy to be invoked on overlapping source/destination ranges \u2014 undefined behavior that triggered ASan memcpy-param-overlap and heap/stack corruption.",
+      "fix_approach": "Replaced the internal XXH_memcpy implementation to use memmove instead of memcpy so copies are safe for overlapping regions. This is a minimal, localized change in the bundled xxHash header (ext/hash/xxhash/xxhash.h) to eliminate undefined behavior when overlap occurs. No persistent changes to PHP glue were left in the tree (a temporary defensive attempt was reverted).",
+      "files_modified": [
+        "ext/hash/xxhash/xxhash.h"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 316872,
+      "output_tokens": 6999
+    },
+    "timing": {
+      "start_time": 1769153355.4156325,
+      "end_time": 1769153547.1936686,
+      "duration": 191.7780361175537
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nA memcpy-parameter-overlap occurs in the XXH32 update path (XXH_memcpy / XXH_INLINE_XXH32_update called from PHP_XXH32Update in ext/hash/hash_xxhash.c / xxhash.h), causing memcpy to be invoked on overlapping source and destination ranges. This leads to undefined behavior and a heap-buffer-overflow read, resulting in memory",
+      "total_steps": 9,
+      "total_duration": 191.7780361175537,
+      "total_input_tokens": 316872,
+      "total_output_tokens": 6999,
+      "total_cost": 0.0174048,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 408447,
+    "output_tokens": 15795
+  },
+  "timing": {
+    "total_duration": 2877.0358831882477
+  }
+}

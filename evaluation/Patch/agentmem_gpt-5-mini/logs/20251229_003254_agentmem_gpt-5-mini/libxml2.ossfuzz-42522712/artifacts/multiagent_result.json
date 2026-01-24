@@ -1,0 +1,165 @@
+{
+  "instance_id": "libxml2.ossfuzz-42522712",
+  "final_status": "failed",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\"analysis_type\":\"memory\",\"findings\":[{\"file\":\"/src/libxml2/xmlstring.c\",\"line\":53,\"message\":\"ASan stack trace shows out-of-bounds read inside xmlStrndup (xmlstring.c:53). CodeQL did not directly flag xmlStrndup, but sanitizer pinpoints the overflow site.\",\"severity\":\"error\"},{\"file\":\"/src/libxml2/HTMLparser.c\",\"line\":3305,\"message\":\"Sanitizer shows htmlParseExternalID (HTMLparser.c:3305) \u2192 htmlParseDocTypeDecl calls xmlStrndup with a length/offset that can be incorrect; CodeQL memory analysis reports many suspicious array accesses in HTMLparser.c.\",\"severity\":\"warning\"},{\"file\":\"/src/libxml2/HTMLparser.c\",\"line\":6523,\"message\":\"CodeQL dataflow: call to dangerous function strcpy at HTMLparser.c:6523 (one of 37 dataflow findings highlighting unsafe string handling in parser code).\",\"severity\":\"warning\"}],\"dataflow_summary\":\"CodeQL dataflow produced 37 findings (calls to strcpy/strcat/sprintf/etc.). It did not produce a direct taint path from the parser-supplied length/offset to xmlStrndup's length parameter in the provided database, but it highlights many unsafe string operations in HTMLparser.c that increase risk.\",\"key_insight\":\"Root cause appears to be missing or insufficient validation of the length/offset passed from the HTML parser into xmlStrndup; xmlStrndup performs an unchecked memcpy of the requested length, allowing an OOB read of global memory when the caller supplies a too-large or corrupted length.\",\"fix_suggestions\":[{\"approach\":\"Validate length/offset at parser call sites before calling xmlStrndup (e.g., in htmlParseSystemLiteral/htmlParseExternalID/htmlParseDocTypeDecl). Ensure len <= remaining_buffer_bytes and len >= 0.\",\"reasoning\":\"Fixes the root cause at the source with minimal changes and prevents callers from requesting reads past buffer end.\",\"trade_offs\":\"Requires computing reliable remaining buffer size; may change parser behavior on malformed input (should fail gracefully).\"},{\"approach\":\"Harden xmlStrndup: convert to defensive implementation that uses strnlen on the source, checks for integer overflow, clamps requested length to actual available bytes, and guarantees null-termination.\",\"reasoning\":\"Provides defense-in-depth so misuse by other callers is mitigated; prevents unchecked memcpy of attacker-controlled lengths.\",\"trade_offs\":\"Slight performance overhead and careful handling needed to preserve API semantics; must ensure callers relying on previous behavior are handled.\"},{\"approach\":\"Add additional integer-overflow and bounds checks where length is computed (check sums/subtractions that compute offsets), and replace unsafe string functions in HTMLparser.c with bounded versions.\",\"reasoning\":\"Prevents creation of huge or negative lengths due to arithmetic errors and reduces other unsafe patterns CodeQL flagged (strcpy/strcat/sprintf).\",\"trade_offs\":\"Broader code changes; requires review to avoid regressions and ensure consistent use of safe APIs.\"}]}",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "/src/libxml2/xmlstring.c",
+          "line": 53,
+          "message": "ASan stack trace shows out-of-bounds read inside xmlStrndup (xmlstring.c:53). CodeQL did not directly flag xmlStrndup, but sanitizer pinpoints the overflow site.",
+          "severity": "error"
+        },
+        {
+          "file": "/src/libxml2/HTMLparser.c",
+          "line": 3305,
+          "message": "Sanitizer shows htmlParseExternalID (HTMLparser.c:3305) \u2192 htmlParseDocTypeDecl calls xmlStrndup with a length/offset that can be incorrect; CodeQL memory analysis reports many suspicious array accesses in HTMLparser.c.",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/libxml2/HTMLparser.c",
+          "line": 6523,
+          "message": "CodeQL dataflow: call to dangerous function strcpy at HTMLparser.c:6523 (one of 37 dataflow findings highlighting unsafe string handling in parser code).",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "CodeQL dataflow produced 37 findings (calls to strcpy/strcat/sprintf/etc.). It did not produce a direct taint path from the parser-supplied length/offset to xmlStrndup's length parameter in the provided database, but it highlights many unsafe string operations in HTMLparser.c that increase risk.",
+      "key_insight": "Root cause appears to be missing or insufficient validation of the length/offset passed from the HTML parser into xmlStrndup; xmlStrndup performs an unchecked memcpy of the requested length, allowing an OOB read of global memory when the caller supplies a too-large or corrupted length.",
+      "fix_suggestions": [
+        {
+          "approach": "Validate length/offset at parser call sites before calling xmlStrndup (e.g., in htmlParseSystemLiteral/htmlParseExternalID/htmlParseDocTypeDecl). Ensure len <= remaining_buffer_bytes and len >= 0.",
+          "reasoning": "Fixes the root cause at the source with minimal changes and prevents callers from requesting reads past buffer end.",
+          "trade_offs": "Requires computing reliable remaining buffer size; may change parser behavior on malformed input (should fail gracefully)."
+        },
+        {
+          "approach": "Harden xmlStrndup: convert to defensive implementation that uses strnlen on the source, checks for integer overflow, clamps requested length to actual available bytes, and guarantees null-termination.",
+          "reasoning": "Provides defense-in-depth so misuse by other callers is mitigated; prevents unchecked memcpy of attacker-controlled lengths.",
+          "trade_offs": "Slight performance overhead and careful handling needed to preserve API semantics; must ensure callers relying on previous behavior are handled."
+        },
+        {
+          "approach": "Add additional integer-overflow and bounds checks where length is computed (check sums/subtractions that compute offsets), and replace unsafe string functions in HTMLparser.c with bounded versions.",
+          "reasoning": "Prevents creation of huge or negative lengths due to arithmetic errors and reduces other unsafe patterns CodeQL flagged (strcpy/strcat/sprintf).",
+          "trade_offs": "Broader code changes; requires review to avoid regressions and ensure consistent use of safe APIs."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 26079,
+      "output_tokens": 2759
+    },
+    "timing": {
+      "start_time": 1769071484.1882627,
+      "end_time": 1769071538.9731565,
+      "duration": 54.78489375114441
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlStrndup (xmlstring.c) when invoked from the HTML parser (HTMLparser.c) during DOCTYPE/system/public literal parsing (e.g., htmlParseSystemLiteral/htmlParseDocTypeDecl). The parser can supply an incorrect length/offset to xmlStrndup, causing it to read past the end ",
+      "total_steps": 3,
+      "total_duration": 54.78489375114441,
+      "total_input_tokens": 26079,
+      "total_output_tokens": 2759,
+      "total_cost": 0.004406075,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x55c23a2fa537 (ASan reported address; UBSan showed a related SEGV during memmove)\",\n    \"type\": \"global-buffer-overflow (out-of-bounds read)\",\n    \"location\": \"xmlstring.c:53 (xmlStrndup)\")\n  },\n  \"backtrace\": [\n    \"xmlStrndup (xmlstring.c:53)\",\n    \"htmlParseExternalID (HTMLparser.c:3305)\",\n    \"htmlParseDocTypeDecl (HTMLparser.c:3703)\",\n    \"htmlParseDocument (HTMLparser.c:5022)\",\n    \"htmlDoRead / htmlReadFile (HTMLparser.c:6945 / 7003)\",\n    \"parseAndPrintFile (xmllint.c:2186)\",\n    \"main (xmllint.c:3696)\",\n    \"__libc_start_main\"\n  ],\n  \"memory_state\": \"ASan reported a READ of size 10001024 beyond the end of a global buffer; the overflow reads into adjacent global data (e.g., '.str.5' / 'Huge input lookup'). xmlStrndup ultimately calls memmove with an excessively large length value, copying past the allocated/source buffer bounds.\",\n  \"root_cause_hint\": \"The HTML parser (DOCTYPE/system/public literal parsing path) is supplying an invalid/too-large length/offset to xmlStrndup. xmlStrndup blindly copies the requested length (via memmove) without verifying that the input buffer actually contains that many bytes, leading to a global OOB read.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate and clamp lengths in the HTML parser before calling xmlStrndup (patch htmlParseExternalID/htmlParseDocTypeDecl).\",\n      \"reasoning\": \"The length originates in the parser; validating bounds at the call site prevents passing invalid sizes to xmlStrndup and stops the out-of-bounds read at the source.\",\n      \"trade_offs\": \"Requires careful auditing of all call sites that pass lengths to xmlStrndup; may mask upstream logic errors if lengths are silently clamped instead of fixing origin of bad values. Minimal runtime overhead.\"\n    },\n    {\n      \"approach\": \"Harden xmlStrndup to be defensive: detect very large 'len' values and compute the real available length from the source buffer (e.g., limit to actual string length or to a sane maximum), failing gracefully if inconsistent.\",\n      \"reasoning\": \"Making the utility function robust provides a last line of defense against callers passing bad lengths, reducing the chance of OOB reads even if callers are buggy.\",\n      \"trade_offs\": \"Adds overhead to xmlStrndup and requires reliable way to determine available bytes (requires knowledge of buffer termination). Could hide bugs in callers instead of forcing them to be fixed.\",\n    },\n    {\n      \"approach\": \"Add unit tests and fuzzing for DOCTYPE and external ID parsing, plus CI checks with sanitizers to catch regressions (ASan/UBSan).\",\n      \"reasoning\": \"Prevents future regressions and catches pathological length values early during development.\",\n      \"trade_offs\": \"Does not directly fix the bug, but improves detection and long-term robustness; requires investment in test harnesses and CI resources.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x55c23a2fa537 (ASan reported address; UBSan showed a related SEGV during memmove)\",\n    \"type\": \"global-buffer-overflow (out-of-bounds read)\",\n    \"location\": \"xmlstring.c:53 (xmlStrndup)\")\n  },\n  \"backtrace\": [\n    \"xmlStrndup (xmlstring.c:53)\",\n    \"htmlParseExternalID (HTMLparser.c:3305)\",\n    \"htmlParseDocTypeDecl (HTMLparser.c:3703)\",\n    \"htmlParseDocument (HTMLparser.c:5022)\",\n    \"htmlDoRead / htmlReadFile (HTMLparser.c:6945 / 7003)\",\n    \"parseAndPrintFile (xmllint.c:2186)\",\n    \"main (xmllint.c:3696)\",\n    \"__libc_start_main\"\n  ],\n  \"memory_state\": \"ASan reported a READ of size 10001024 beyond the end of a global buffer; the overflow reads into adjacent global data (e.g., '.str.5' / 'Huge input lookup'). xmlStrndup ultimately calls memmove with an excessively large length value, copying past the allocated/source buffer bounds.\",\n  \"root_cause_hint\": \"The HTML parser (DOCTYPE/system/public literal parsing path) is supplying an invalid/too-large length/offset to xmlStrndup. xmlStrndup blindly copies the requested length (via memmove) without verifying that the input buffer actually contains that many bytes, leading to a global OOB read.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Validate and clamp lengths in the HTML parser before calling xmlStrndup (patch htmlParseExternalID/htmlParseDocTypeDecl).\",\n      \"reasoning\": \"The length originates in the parser; validating bounds at the call site prevents passing invalid sizes to xmlStrndup and stops the out-of-bounds read at the source.\",\n      \"trade_offs\": \"Requires careful auditing of all call sites that pass lengths to xmlStrndup; may mask upstream logic errors if lengths are silently clamped instead of fixing origin of bad values. Minimal runtime overhead.\"\n    },\n    {\n      \"approach\": \"Harden xmlStrndup to be defensive: detect very large 'len' values and compute the real available length from the source buffer (e.g., limit to actual string length or to a sane maximum), failing gracefully if inconsistent.\",\n      \"reasoning\": \"Making the utility function robust provides a last line of defense against callers passing bad lengths, reducing the chance of OOB reads even if callers are buggy.\",\n      \"trade_offs\": \"Adds overhead to xmlStrndup and requires reliable way to determine available bytes (requires knowledge of buffer termination). Could hide bugs in callers instead of forcing them to be fixed.\",\n    },\n    {\n      \"approach\": \"Add unit tests and fuzzing for DOCTYPE and external ID parsing, plus CI checks with sanitizers to catch regressions (ASan/UBSan).\",\n      \"reasoning\": \"Prevents future regressions and catches pathological length values early during development.\",\n      \"trade_offs\": \"Does not directly fix the bug, but improves detection and long-term robustness; requires investment in test harnesses and CI resources.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 17771,
+      "output_tokens": 2434
+    },
+    "timing": {
+      "start_time": 1769071538.9772449,
+      "end_time": 1769071573.2883933,
+      "duration": 34.31114840507507
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlStrndup (xmlstring.c) when invoked from the HTML parser (HTMLparser.c) during DOCTYPE/system/public literal parsing (e.g., htmlParseSystemLiteral/htmlParseDocTypeDecl). The parser can supply an incorrect length/offset to xmlStrndup, causing it to read past the end ",
+      "total_steps": 2,
+      "total_duration": 34.31114840507507,
+      "total_input_tokens": 17771,
+      "total_output_tokens": 2434,
+      "total_cost": 0.003172175,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"xmlstring.c\",\n  \"function_analyzed\": \"xmlStrndup\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"6010a53\",\n      \"message\": \"Avoid potential integer overflow in xmlstring.c\",\n      \"changes\": \"Use size_t casts, guard against len == INT_MAX and large string sizes; xmlStrlen changed to use size_t and return 0 if > INT_MAX; multiple functions updated to avoid integer overflow.\",\n      \"relevance\": \"Introduces defensive checks and size_t usage around xmlStrndup and related APIs addressing overflow cases that can cause oversized allocations or wrong lengths.\">\n    },\n    {\n      \"hash\": \"2cac626\",\n      \"message\": \"Don't use sizeof(xmlChar) or sizeof(char)\",\n      \"changes\": \"Remove multiplies by sizeof(xmlChar)/sizeof(char) and adjust allocations/memcpy to use byte counts ((size_t)len + 1) and memcpy(..., len).\",\n      \"relevance\": \"Changes the unit used in memcpy/alloc; if callers treat len as characters vs bytes this change affects how many bytes are copied and can expose/mitigate over-read issues.\">\n    },\n    {\n      \"hash\": \"c7260a4\",\n      \"message\": \"malloc-fail: Don't call xmlErrMemory in xmlstring.c\",\n      \"changes\": \"Remove xmlErrMemory calls on allocation failure in xmlStrndup, xmlCharStrndup, xmlStrncat and similar to avoid recursive error handling issues.\",\n      \"relevance\": \"Alters failure-path behavior for allocation errors; while not directly fixing over-reads, it changes runtime behavior when allocations fail and reduces recursive error hazards.\">\n    }\n  ],\n  \"vulnerability_origin\": \"The crash is caused by trusting an external 'len' value passed to xmlStrndup (from HTML parser code) without validating it against the actual source buffer length. Historical commits show fixes addressing integer overflow and unit handling (bytes vs characters), indicating the root is mismatch/insufficient validation of length and overflow when computing allocations/copies.\",\n  \"fix_hints\": \"History shows two classes of relevant changes: (1) use size_t and explicit overflow checks around len and (2) consistent byte-unit usage for memcpy/alloc. A robust fix should validate/clamp len against the actual available bytes and perform overflow-safe allocation size checks.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Clamp and validate len against the source buffer length before allocation and copy (e.g., compute remaining bytes with a safe strnlen and use min(len, remaining)).\",\n      \"reasoning\": \"Directly prevents reading past the buffer regardless of what the caller passes; consistent with historical intent to avoid integer overflow and incorrect lengths.\",\n      \"trade_offs\": \"Small performance cost for additional length computation; must ensure correct interpretation of 'len' units (bytes vs characters).\"\n    },\n    {\n      \"approach\": \"Add overflow-safe allocation checks: cast to size_t, check len <= SIZE_MAX - 1 and len <= INT_MAX (if API requires), then allocate (size_t)len + 1 and memcpy exactly len bytes.\",\n      \"reasoning\": \"Matches prior commits that introduced size_t usage and INT_MAX guards; prevents wraparound in allocation size calculations that can lead to huge copies.\",\n      \"trade_offs\": \"Doesn't by itself prevent caller-provided excessive len (still should clamp), but prevents integer wrap and disastrous allocations/copies.\"\n    },\n    {\n      \"approach\": \"Fix the caller side (HTML parser): ensure the parser computes and passes lengths in bytes and bounds-checks offsets/lengths when extracting system/public literals.\",\n      \"reasoning\": \"If the root cause is the caller providing incorrect lengths/offsets, fixing the source is ideal and avoids adding extra costs in low-level APIs.\",\n      \"trade_offs\": \"Requires auditing parser codepaths and may be more invasive; safer to apply both caller-side fixes and defensive checks in xmlStrndup.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"xmlstring.c\",\n  \"function_analyzed\": \"xmlStrndup\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"6010a53\",\n      \"message\": \"Avoid potential integer overflow in xmlstring.c\",\n      \"changes\": \"Use size_t casts, guard against len == INT_MAX and large string sizes; xmlStrlen changed to use size_t and return 0 if > INT_MAX; multiple functions updated to avoid integer overflow.\",\n      \"relevance\": \"Introduces defensive checks and size_t usage around xmlStrndup and related APIs addressing overflow cases that can cause oversized allocations or wrong lengths.\">\n    },\n    {\n      \"hash\": \"2cac626\",\n      \"message\": \"Don't use sizeof(xmlChar) or sizeof(char)\",\n      \"changes\": \"Remove multiplies by sizeof(xmlChar)/sizeof(char) and adjust allocations/memcpy to use byte counts ((size_t)len + 1) and memcpy(..., len).\",\n      \"relevance\": \"Changes the unit used in memcpy/alloc; if callers treat len as characters vs bytes this change affects how many bytes are copied and can expose/mitigate over-read issues.\">\n    },\n    {\n      \"hash\": \"c7260a4\",\n      \"message\": \"malloc-fail: Don't call xmlErrMemory in xmlstring.c\",\n      \"changes\": \"Remove xmlErrMemory calls on allocation failure in xmlStrndup, xmlCharStrndup, xmlStrncat and similar to avoid recursive error handling issues.\",\n      \"relevance\": \"Alters failure-path behavior for allocation errors; while not directly fixing over-reads, it changes runtime behavior when allocations fail and reduces recursive error hazards.\">\n    }\n  ],\n  \"vulnerability_origin\": \"The crash is caused by trusting an external 'len' value passed to xmlStrndup (from HTML parser code) without validating it against the actual source buffer length. Historical commits show fixes addressing integer overflow and unit handling (bytes vs characters), indicating the root is mismatch/insufficient validation of length and overflow when computing allocations/copies.\",\n  \"fix_hints\": \"History shows two classes of relevant changes: (1) use size_t and explicit overflow checks around len and (2) consistent byte-unit usage for memcpy/alloc. A robust fix should validate/clamp len against the actual available bytes and perform overflow-safe allocation size checks.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Clamp and validate len against the source buffer length before allocation and copy (e.g., compute remaining bytes with a safe strnlen and use min(len, remaining)).\",\n      \"reasoning\": \"Directly prevents reading past the buffer regardless of what the caller passes; consistent with historical intent to avoid integer overflow and incorrect lengths.\",\n      \"trade_offs\": \"Small performance cost for additional length computation; must ensure correct interpretation of 'len' units (bytes vs characters).\"\n    },\n    {\n      \"approach\": \"Add overflow-safe allocation checks: cast to size_t, check len <= SIZE_MAX - 1 and len <= INT_MAX (if API requires), then allocate (size_t)len + 1 and memcpy exactly len bytes.\",\n      \"reasoning\": \"Matches prior commits that introduced size_t usage and INT_MAX guards; prevents wraparound in allocation size calculations that can lead to huge copies.\",\n      \"trade_offs\": \"Doesn't by itself prevent caller-provided excessive len (still should clamp), but prevents integer wrap and disastrous allocations/copies.\"\n    },\n    {\n      \"approach\": \"Fix the caller side (HTML parser): ensure the parser computes and passes lengths in bytes and bounds-checks offsets/lengths when extracting system/public literals.\",\n      \"reasoning\": \"If the root cause is the caller providing incorrect lengths/offsets, fixing the source is ideal and avoids adding extra costs in low-level APIs.\",\n      \"trade_offs\": \"Requires auditing parser codepaths and may be more invasive; safer to apply both caller-side fixes and defensive checks in xmlStrndup.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 17012,
+      "output_tokens": 2442
+    },
+    "timing": {
+      "start_time": 1769071573.2920678,
+      "end_time": 1769071688.162855,
+      "duration": 114.87078714370728
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlStrndup (xmlstring.c) when invoked from the HTML parser (HTMLparser.c) during DOCTYPE/system/public literal parsing (e.g., htmlParseSystemLiteral/htmlParseDocTypeDecl). The parser can supply an incorrect length/offset to xmlStrndup, causing it to read past the end ",
+      "total_steps": 2,
+      "total_duration": 114.87078714370728,
+      "total_input_tokens": 17012,
+      "total_output_tokens": 2442,
+      "total_cost": 0.0031861,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"The HTML parser passed an incorrect/oversized length (len) into xmlStrndup during SystemLiteral/PublicID parsing. xmlStrndup performed an unchecked memcpy of 'len' bytes, allowing reads past the input buffer into adjacent global memory.\",\n  \"fix_approach\": \"Added defensive bounds checks at the HTML parser call sites and added defense-in-depth in xmlStrndup:\n 1) HTMLparser.c: When parsing SystemLiteral and PubidLiteral compute the available bytes from the input buffer and clamp/copy only up to that available size (and report an error for excessively large lengths). This prevents the parser from requesting a copy beyond the input buffer.\n 2) xmlstring.c: Added a sanity upper bound check rejecting absurdly large 'len' values (>1 MiB) in xmlStrndup and xmlCharStrndup to mitigate misuse from other callers.\nThese changes ensure the memcpy in xmlStrndup cannot be driven to read past the source buffer in the reported code paths.\",\n  \"files_modified\": [\"HTMLparser.c\", \"xmlstring.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "raw": "{\n  \"root_cause\": \"The HTML parser passed an incorrect/oversized length (len) into xmlStrndup during SystemLiteral/PublicID parsing. xmlStrndup performed an unchecked memcpy of 'len' bytes, allowing reads past the input buffer into adjacent global memory.\",\n  \"fix_approach\": \"Added defensive bounds checks at the HTML parser call sites and added defense-in-depth in xmlStrndup:\n 1) HTMLparser.c: When parsing SystemLiteral and PubidLiteral compute the available bytes from the input buffer and clamp/copy only up to that available size (and report an error for excessively large lengths). This prevents the parser from requesting a copy beyond the input buffer.\n 2) xmlstring.c: Added a sanity upper bound check rejecting absurdly large 'len' values (>1 MiB) in xmlStrndup and xmlCharStrndup to mitigate misuse from other callers.\nThese changes ensure the memcpy in xmlStrndup cannot be driven to read past the source buffer in the reported code paths.\",\n  \"files_modified\": [\"HTMLparser.c\", \"xmlstring.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+      "parse_error": true
+    },
+    "success": false,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 789290,
+      "output_tokens": 25532
+    },
+    "timing": {
+      "start_time": 1769071688.1664937,
+      "end_time": 1769072003.1713042,
+      "duration": 315.00481057167053
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlStrndup (xmlstring.c) when invoked from the HTML parser (HTMLparser.c) during DOCTYPE/system/public literal parsing (e.g., htmlParseSystemLiteral/htmlParseDocTypeDecl). The parser can supply an incorrect length/offset to xmlStrndup, causing it to read past the end ",
+      "total_steps": 26,
+      "total_duration": 315.00481057167053,
+      "total_input_tokens": 789290,
+      "total_output_tokens": 25532,
+      "total_cost": 0.04145085,
+      "final_state": "failed"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 850152,
+    "output_tokens": 33167
+  },
+  "timing": {
+    "total_duration": 518.9965424537659
+  }
+}

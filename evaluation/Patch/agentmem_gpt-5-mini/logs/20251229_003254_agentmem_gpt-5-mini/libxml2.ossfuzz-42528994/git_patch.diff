@@ -1,0 +1,46 @@
+diff --git a/parser.c b/parser.c
+index cd89fdb6..802d3e49 100644
+--- a/parser.c
++++ b/parser.c
+@@ -4961,7 +4961,31 @@ xmlParseCommentComplex(xmlParserCtxtPtr ctxt, xmlChar *buf,
+ 	    buf = new_buf;
+             size = new_size;
+ 	}
+-	COPY_BUF(ql,buf,len,q);
++				/* Append current character safely. For multibyte chars, encode into tmp then copy. */
++			if (ql == 1) {
++			    if (len + 1 + 1 >= size) {
++			        size_t new_size = size * 2;
++			        while (new_size <= len + 1 + 1) new_size *= 2;
++			        xmlChar *new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++			        if (new_buf == NULL) { xmlFree(buf); xmlErrMemory(ctxt, NULL); return; }
++			        buf = new_buf; size = new_size;
++			    }
++			    buf[len++] = q;
++			} else {
++			    xmlChar tmp[6];
++			    int w = xmlCopyCharMultiByte(tmp, q);
++			    if (w <= 0) w = 0;
++			    if (len + (size_t)w + 1 >= size) {
++			        size_t new_size = size * 2;
++			        while (new_size <= len + (size_t)w + 1) new_size *= 2;
++			        xmlChar *new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++			        if (new_buf == NULL) { xmlFree(buf); xmlErrMemory(ctxt, NULL); return; }
++			        buf = new_buf; size = new_size;
++			    }
++			    memcpy(&buf[len], tmp, w);
++			    len += w;
++			}
++
+         if (len > maxLength) {
+             xmlFatalErrMsgStr(ctxt, XML_ERR_COMMENT_NOT_FINISHED,
+                          "Comment too big found", NULL);
+@@ -5089,7 +5113,7 @@ get_more:
+ 		(ctxt->sax->comment != NULL)) {
+ 		if (buf == NULL) {
+ 		    if ((*in == '-') && (in[1] == '-'))
+-		        size = nbchar + 1;
++		        size = nbchar + 6;
+ 		    else
+ 		        size = XML_PARSER_BUFFER_SIZE + nbchar;
+ 		    buf = (xmlChar *) xmlMallocAtomic(size);

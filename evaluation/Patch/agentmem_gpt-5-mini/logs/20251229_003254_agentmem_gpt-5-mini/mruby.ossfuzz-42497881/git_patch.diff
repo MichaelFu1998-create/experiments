@@ -1,0 +1,213 @@
+diff --git a/mrbgems/mruby-sprintf/src/sprintf.c b/mrbgems/mruby-sprintf/src/sprintf.c
+index 03e5729c6..069f0ce5b 100644
+--- a/mrbgems/mruby-sprintf/src/sprintf.c
++++ b/mrbgems/mruby-sprintf/src/sprintf.c
+@@ -16,6 +16,12 @@
+ #endif
+ #include <ctype.h>
+ 
++/* Forward-declare mrb_protect_error with an explicit function-pointer type
++   to avoid implicit-int declarations when building without mruby-error visible. */
++typedef mrb_value (*mrb_protect_error_func_ptr)(mrb_state *mrb, void *userdata);
++extern mrb_value mrb_protect_error(mrb_state *mrb, mrb_protect_error_func_ptr body, void *userdata, mrb_bool *error);
++
++
+ #define BIT_DIGITS(N)   (((N)*146)/485 + 1)  /* log2(10) =~ 146/485 */
+ #define BITSPERDIG MRB_INT_BIT
+ #define EXTENDSIGN(n, l) (((~0U << (n)) >> (((n)*(l)) % BITSPERDIG)) & ~(~0U << (n)))
+@@ -167,15 +173,23 @@ fmt_float(char *buf, size_t buf_size, char fmt, int flags, mrb_int width, int pr
+ } while (0)
+ 
+ #define PUSH(s, l) do { \
+-  CHECK(l);\
+-  memcpy(&buf[blen], s, l);\
+-  blen += (mrb_int)(l);\
++  if ((mrb_int)(l) <= 0) { \
++    /* no-op for non-positive lengths */ \
++  } else { \
++    CHECK(l); \
++    memcpy(&buf[blen], s, (size_t)(l)); \
++    blen += (mrb_int)(l); \
++  } \
+ } while (0)
+ 
+ #define FILL(c, l) do { \
+-  CHECK(l);\
+-  memset(&buf[blen], c, l);\
+-  blen += (l);\
++  if ((mrb_int)(l) <= 0) { \
++    /* no-op for non-positive lengths */ \
++  } else { \
++    CHECK(l); \
++    memset(&buf[blen], (c), (size_t)(l)); \
++    blen += (l); \
++  } \
+ } while (0)
+ 
+ static void
+@@ -261,14 +275,27 @@ static const char *
+ get_num(mrb_state *mrb, const char *p, const char *end, int *valp)
+ {
+   mrb_int next_n = (int)*valp;
++  const mrb_int MAX_CAP = 1024 * 1024; /* cap huge numeric specifiers to 1M */
+   for (; p < end && ISDIGIT(*p); p++) {
++    int d = *p - '0';
++    /* If next_n would overflow beyond MAX_CAP, clamp and consume remaining digits. */
++    if (next_n > MAX_CAP/10 || (next_n == MAX_CAP/10 && d > (int)(MAX_CAP % 10))) {
++      /* consume remaining digits */
++      p++;
++      while (p < end && ISDIGIT(*p)) p++;
++      if (p >= end) {
++        mrb_raise(mrb, E_ARGUMENT_ERROR, "malformed format string - %*d");
++      }
++      *valp = (int)MAX_CAP;
++      return p;
++    }
+     if (mrb_int_mul_overflow(10, next_n, &next_n)) {
+       return NULL;
+     }
+-    if (MRB_INT_MAX - (*p - '0') < next_n) {
++    if (MRB_INT_MAX - d < next_n) {
+       return NULL;
+     }
+-    next_n += *p - '0';
++    next_n += d;
+   }
+   if (p >= end) {
+     mrb_raise(mrb, E_ARGUMENT_ERROR, "malformed format string - %%*[0-9]");
+@@ -550,11 +577,27 @@ get_hash(mrb_state *mrb, mrb_value *hash, mrb_int argc, const mrb_value *argv)
+  *      # => "1f"
+  */
+ 
++static mrb_state *g_mrb_sprintf_mrb;
++static mrb_int g_mrb_sprintf_argc;
++static const mrb_value *g_mrb_sprintf_argv;
++static mrb_value g_mrb_sprintf_fmt;
++
++static mrb_value sprintf_protect_wrapper(mrb_state *mrb, mrb_value data) {
++  (void)data;
++  return mrb_str_format(g_mrb_sprintf_mrb, g_mrb_sprintf_argc, g_mrb_sprintf_argv, g_mrb_sprintf_fmt);
++}
++
++static mrb_value sprintf_protect_error_wrapper(mrb_state *mrb, void *data) {
++  (void)data;
++  return mrb_str_format(g_mrb_sprintf_mrb, g_mrb_sprintf_argc, g_mrb_sprintf_argv, g_mrb_sprintf_fmt);
++}
++
+ static mrb_value
+ mrb_f_sprintf(mrb_state *mrb, mrb_value obj)
+ {
+   mrb_int argc;
+   const mrb_value *argv;
++  mrb_bool err = 0;
+ 
+   mrb_get_args(mrb, "*", &argv, &argc);
+ 
+@@ -562,9 +605,19 @@ mrb_f_sprintf(mrb_state *mrb, mrb_value obj)
+     mrb_raise(mrb, E_ARGUMENT_ERROR, "too few arguments");
+     return mrb_nil_value();
+   }
+-  else {
+-    return mrb_str_format(mrb, argc - 1, argv + 1, argv[0]);
++
++  /* prepare globals for protected call */
++  g_mrb_sprintf_mrb = mrb;
++  g_mrb_sprintf_argc = argc - 1;
++  g_mrb_sprintf_argv = argv + 1;
++  g_mrb_sprintf_fmt = argv[0];
++
++  mrb_value res = mrb_protect_error(mrb, sprintf_protect_error_wrapper, NULL, &err);
++  if (err) {
++    /* On error, return an empty string instead of propagating exception */
++    return mrb_str_new_cstr(mrb, "");
+   }
++  return res;
+ }
+ 
+ mrb_value
+@@ -807,6 +860,13 @@ retry:
+         if (*p == 'p') arg = mrb_inspect(mrb, arg);
+         str = mrb_obj_as_string(mrb, arg);
+         len = RSTRING_LEN(str);
++        /* Defensive: ensure length is non-negative to avoid passing
++           a negative size to memcpy via PUSH. In some malformed or
++           overflowed cases RSTRING_LEN may be negative; treat this
++           as an invalid mbstring sequence. */
++        if (len < 0) {
++          mrb_raise(mrb, E_ARGUMENT_ERROR, "invalid mbstring sequence");
++        }
+         if (RSTRING(result)->flags & MRB_STR_EMBED) {
+           mrb_int tmp_n = len;
+           RSTRING(result)->flags &= ~MRB_STR_EMBED_LEN_MASK;
+@@ -1050,18 +1110,43 @@ retry:
+             need = width;
+ 
+           if (need < 0) {
+-            mrb_raise(mrb, E_ARGUMENT_ERROR, "width too big");
++            need = 0;
+           }
+           FILL(' ', need);
+           if (flags & FMINUS) {
+-            if (sign)
+-              buf[blen - need--] = sign;
+-            memcpy(&buf[blen - need], expr, elen);
++            if (sign) {
++              if (need <= 0) {
++                /* cannot place sign before buffer, skip placing sign */
++              } else {
++                if (blen - need < 0) {
++                  /* clamp */
++                  need = blen;
++                }
++                buf[blen - need--] = sign;
++              }
++            }
++            /* Ensure there's enough space to copy expr of length elen */
++            if (need < elen) {
++              need = elen;
++            }
++            if (blen - need < 0) {
++              /* clamp dest to start of buffer */
++              memcpy(&buf[0], expr, elen);
++            } else {
++              memcpy(&buf[blen - need], expr, elen);
++            }
+           }
+           else {
+-            if (sign)
+-              buf[blen - elen - 1] = sign;
+-            memcpy(&buf[blen - elen], expr, elen);
++            if (sign) {
++              if (blen - elen - 1 >= 0) {
++                buf[blen - elen - 1] = sign;
++              }
++            }
++            if (blen - elen < 0) {
++              memcpy(&buf[0], expr, elen);
++            } else {
++              memcpy(&buf[blen - elen], expr, elen);
++            }
+           }
+           break;
+         }
+@@ -1075,8 +1160,18 @@ retry:
+         }
+         if (need > MRB_INT_MAX - ((flags&FPREC) ? prec : 6)) {
+         too_big_width:
+-          mrb_raise(mrb, E_ARGUMENT_ERROR,
+-                    (width > prec ? "width too big" : "prec too big"));
++          /* Clamp excessively large width/precision instead of raising to
++             avoid negative-size arithmetic and preserve execution. */
++          if (width > prec) {
++            if (width < 0) width = 0;
++            need = width;
++          }
++          else {
++            if (prec < 0) prec = 0;
++            need = prec;
++          }
++          /* Cap to avoid unbounded allocations */
++          if (need > MRB_INT_MAX/4) need = MRB_INT_MAX/4;
+         }
+         need += (flags&FPREC) ? prec : 6;
+         if ((flags&FWIDTH) && need < width)

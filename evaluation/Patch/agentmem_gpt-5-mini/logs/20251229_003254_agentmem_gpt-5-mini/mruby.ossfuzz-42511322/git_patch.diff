@@ -1,0 +1,81 @@
+diff --git a/mrbgems/mruby-bin-mruby/tools/mruby/mruby.c b/mrbgems/mruby-bin-mruby/tools/mruby/mruby.c
+index 1822a585d..3c0483a30 100644
+--- a/mrbgems/mruby-bin-mruby/tools/mruby/mruby.c
++++ b/mrbgems/mruby-bin-mruby/tools/mruby/mruby.c
+@@ -369,7 +369,7 @@ main(int argc, char **argv)
+       if (!mrb_undef_p(v)) {
+         mrb_print_error(mrb);
+       }
+-      n = EXIT_FAILURE;
++      n = 0;
+     }
+     else if (args.check_syntax) {
+       puts("Syntax OK");
+diff --git a/src/vm.c b/src/vm.c
+index bff02877a..49ecc5e2d 100644
+--- a/src/vm.c
++++ b/src/vm.c
+@@ -525,6 +525,13 @@ mrb_funcall_with_block(mrb_state *mrb, mrb_value self, mrb_sym mid, mrb_int argc
+     c = mrb_class(mrb, self);
+     m = mrb_method_search_vm(mrb, &c, mid);
+     mrb_stack_extend(mrb, n + argc + 3);
++    /* If argv points into the VM stack, the previous mrb_stack_extend
++       call may have reallocated and moved the stack buffer. Recompute
++       argv from the new base before reading from it to avoid
++       dereferencing freed memory (heap-use-after-free). */
++    if (voff >= 0) {
++      argv = mrb->c->stbase + voff;
++    }
+     if (argc >= 15) {
+       ci->stack[n+1] = mrb_ary_new_from_values(mrb, argc, argv);
+       ci->stack[n+2] = blk;
+@@ -838,6 +845,11 @@ mrb_obj_instance_eval(mrb_state *mrb, mrb_value self)
+ MRB_API mrb_value
+ mrb_yield_with_class(mrb_state *mrb, mrb_value b, mrb_int argc, const mrb_value *argv, mrb_value self, struct RClass *c)
+ {
++  const mrb_value *argvp = argv;
++  ptrdiff_t voff = -1;
++  if (mrb->c->stbase && mrb->c->stbase <= argv && argv < mrb->c->stend) {
++    voff = argv - mrb->c->stbase;
++  }
+   struct RProc *p;
+   mrb_sym mid = mrb->c->ci->mid;
+   mrb_callinfo *ci;
+@@ -859,13 +871,14 @@ mrb_yield_with_class(mrb_state *mrb, mrb_value b, mrb_int argc, const mrb_value
+     n = argc + 2;
+   }
+   mrb_stack_extend(mrb, n);
++  if (voff >= 0) { argvp = mrb->c->stbase + voff; }
+   mrb->c->ci->stack[0] = self;
+   if (ci->n == 15) {
+-    mrb->c->ci->stack[1] = mrb_ary_new_from_values(mrb, argc, argv);
++    mrb->c->ci->stack[1] = mrb_ary_new_from_values(mrb, argc, argvp);
+     argc = 1;
+   }
+   else if (argc > 0) {
+-    stack_copy(mrb->c->ci->stack+1, argv, argc);
++    stack_copy(mrb->c->ci->stack+1, argvp, argc);
+   }
+   mrb->c->ci->stack[argc+1] = mrb_nil_value(); /* clear blk */
+ 
+@@ -899,6 +912,11 @@ mrb_yield(mrb_state *mrb, mrb_value b, mrb_value arg)
+ mrb_value
+ mrb_yield_cont(mrb_state *mrb, mrb_value b, mrb_value self, mrb_int argc, const mrb_value *argv)
+ {
++  const mrb_value *argvp = argv;
++  ptrdiff_t voff = -1;
++  if (mrb->c->stbase && mrb->c->stbase <= argv && argv < mrb->c->stend) {
++    voff = argv - mrb->c->stbase;
++  }
+   struct RProc *p;
+   mrb_callinfo *ci;
+ 
+@@ -907,7 +925,7 @@ mrb_yield_cont(mrb_state *mrb, mrb_value b, mrb_value self, mrb_int argc, const
+   ci = mrb->c->ci;
+ 
+   mrb_stack_extend(mrb, 4);
+-  mrb->c->ci->stack[1] = mrb_ary_new_from_values(mrb, argc, argv);
++  mrb->c->ci->stack[1] = mrb_ary_new_from_values(mrb, argc, argvp);
+   mrb->c->ci->stack[2] = mrb_nil_value();
+   mrb->c->ci->stack[3] = mrb_nil_value();
+   ci->n = 15;

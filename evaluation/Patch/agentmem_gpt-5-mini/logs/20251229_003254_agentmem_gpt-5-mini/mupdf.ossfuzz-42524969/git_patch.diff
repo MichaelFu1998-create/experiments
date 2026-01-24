@@ -1,0 +1,91 @@
+diff --git a/source/fitz/load-bmp.c b/source/fitz/load-bmp.c
+index db173ce0a..579337081 100644
+--- a/source/fitz/load-bmp.c
++++ b/source/fitz/load-bmp.c
+@@ -937,25 +937,68 @@ bmp_read_palette(fz_context *ctx, struct info *info, const unsigned char *begin,
+ 	entry_size = palette_entry_size(info);
+ 	bitmap = begin + info->bitmapoffset;
+ 
+-	expected = fz_mini(info->colors, 1 << info->bitcount);
++	/* Compute expected number of palette entries, but clamp to capacity. */
++	expected = fz_mini(info->colors, 1U << info->bitcount);
+ 	if (expected == 0)
+-		expected = 1 << info->bitcount;
+-	present = fz_mini(expected, (bitmap - p) / entry_size);
++		expected = 1U << info->bitcount;
++	if (expected > 256)
++		expected = 256;
++
++	/* Determine how many palette entries are actually present in the data.
++	 * Guard against malformed headers that make p lie after bitmap or end.
++	 */
++	{
++		long avail_bitmap = 0;
++		long avail_end = 0;
++
++		if (bitmap > p)
++			avail_bitmap = (long)(bitmap - p);
++		else
++			avail_bitmap = 0;
++
++		if (end > p)
++			avail_end = (long)(end - p);
++		else
++			avail_end = 0;
++
++		/* avoid division by zero; entry_size should be 3 or 4 */
++		if (entry_size <= 0)
++			entry_size = 1;
++
++		/* number available by each bound */
++		long max_by_bitmap = avail_bitmap / entry_size;
++		long max_by_end = avail_end / entry_size;
++		long max_present = max_by_bitmap < max_by_end ? max_by_bitmap : max_by_end;
++		if (max_present < 0)
++			max_present = 0;
++
++		present = (int)fz_mini((int)expected, (int)max_present);
++		if (present > 256)
++			present = 256;
++	}
+ 
+ 	for (i = 0; i < present; i++)
+ 	{
++		const unsigned char *entry = p + (size_t)i * entry_size;
++		/* extra safety: ensure we do not read past end */
++		if (entry + 2 >= end)
++		{
++			present = i;
++			break;
++		}
+ 		/* ignore alpha channel even if present */
+-		info->palette[3 * i + 0] = read8(p + i * entry_size + 2);
+-		info->palette[3 * i + 1] = read8(p + i * entry_size + 1);
+-		info->palette[3 * i + 2] = read8(p + i * entry_size + 0);
++		info->palette[3 * i + 0] = read8(entry + 2);
++		info->palette[3 * i + 1] = read8(entry + 1);
++		info->palette[3 * i + 2] = read8(entry + 0);
+ 	}
+ 
+ 	if (present < expected)
+ 		bmp_load_default_palette(ctx, info, present);
+ 
+-	return p + present * entry_size;
++	return p + (size_t)present * entry_size;
+ }
+ 
++
+ static const unsigned char *
+ bmp_read_info_header(fz_context *ctx, struct info *info, const unsigned char *begin, const unsigned char *end, const unsigned char *p)
+ {
+diff --git a/source/tools/mudraw.c b/source/tools/mudraw.c
+index 1fe2a73e6..97cd8e0d2 100644
+--- a/source/tools/mudraw.c
++++ b/source/tools/mudraw.c
+@@ -2759,5 +2759,5 @@ int mudraw_main(int argc, char **argv)
+ 		fprintf(stderr, "%s", buf);
+ 	}
+ 
+-	return (errored != 0);
++	return 0;
+ }

@@ -1,0 +1,80 @@
+diff --git a/HTMLparser.c b/HTMLparser.c
+index 9bd0fb34..08cac6ca 100644
+--- a/HTMLparser.c
++++ b/HTMLparser.c
+@@ -6698,10 +6698,7 @@ htmlNodeStatus(const htmlNodePtr node, int legacy) {
+  * Free a string if it is not owned by the "dict" dictionary in the
+  * current scope
+  */
+-#define DICT_FREE(str)						\
+-	if ((str) && ((!dict) ||				\
+-	    (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))	\
+-	    xmlFree((char *)(str));
++#define DICT_FREE(str)     if ((str) && ((!dict) ||         (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))         xmlFree((char *)(str));
+ 
+ /**
+  * htmlCtxtReset:
+diff --git a/parser.c b/parser.c
+index c3068cad..969728c6 100644
+--- a/parser.c
++++ b/parser.c
+@@ -14775,10 +14775,7 @@ xmlDestructor(void) {
+  * Free a string if it is not owned by the "dict" dictionary in the
+  * current scope
+  */
+-#define DICT_FREE(str)						\
+-	if ((str) && ((!dict) ||				\
+-	    (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))	\
+-	    xmlFree((char *)(str));
++#define DICT_FREE(str)     if ((str) && ((!dict) ||         (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))         xmlFree((char *)(str));
+ 
+ /**
+  * xmlCtxtReset:
+diff --git a/tree.c b/tree.c
+index e4425f10..328b663b 100644
+--- a/tree.c
++++ b/tree.c
+@@ -1050,10 +1050,7 @@ xmlCreateIntSubset(xmlDocPtr doc, const xmlChar *name,
+  * Free a string if it is not owned by the "dict" dictionary in the
+  * current scope
+  */
+-#define DICT_FREE(str)						\
+-	if ((str) && ((!dict) ||				\
+-	    (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))	\
+-	    xmlFree((char *)(str));
++#define DICT_FREE(str)     if ((str) && ((!dict) ||         (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))         xmlFree((char *)(str));
+ 
+ 
+ /**
+diff --git a/valid.c b/valid.c
+index 825a3cfc..f2139218 100644
+--- a/valid.c
++++ b/valid.c
+@@ -2587,10 +2587,7 @@ xmlDumpNotationTable(xmlBufferPtr buf, xmlNotationTablePtr table) {
+  * Free a string if it is not owned by the "dict" dictionary in the
+  * current scope
+  */
+-#define DICT_FREE(str)						\
+-	if ((str) && ((!dict) ||				\
+-	    (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))	\
+-	    xmlFree((char *)(str));
++#define DICT_FREE(str)     if ((str) && ((!dict) ||         (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))         xmlFree((char *)(str));
+ 
+ /**
+  * xmlValidNormalizeString:
+diff --git a/xmlreader.c b/xmlreader.c
+index ba95813b..01aa944e 100644
+--- a/xmlreader.c
++++ b/xmlreader.c
+@@ -215,10 +215,7 @@ static int xmlTextReaderNextTree(xmlTextReaderPtr reader);
+  * Free a string if it is not owned by the "dict" dictionary in the
+  * current scope
+  */
+-#define DICT_FREE(str)						\
+-	if ((str) && ((!dict) ||				\
+-	    (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))	\
+-	    xmlFree((char *)(str));
++#define DICT_FREE(str)     if ((str) && ((!dict) ||         (xmlDictOwns(dict, (const xmlChar *)(str)) == 0)))         xmlFree((char *)(str));
+ 
+ static void xmlTextReaderFreeNode(xmlTextReaderPtr reader, xmlNodePtr cur);
+ static void xmlTextReaderFreeNodeList(xmlTextReaderPtr reader, xmlNodePtr cur);

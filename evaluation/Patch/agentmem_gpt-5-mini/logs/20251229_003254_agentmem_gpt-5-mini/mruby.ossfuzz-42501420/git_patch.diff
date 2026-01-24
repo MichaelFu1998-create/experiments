@@ -1,0 +1,49 @@
+diff --git a/include/mruby/compile.h b/include/mruby/compile.h
+index 6732625c1..ead7f7da5 100644
+--- a/include/mruby/compile.h
++++ b/include/mruby/compile.h
+@@ -161,7 +161,9 @@ struct mrb_parser_state {
+ 
+   mrb_sym* filename_table;
+   uint16_t filename_table_length;
+-  uint16_t current_filename_index;
++  /* current_filename_index may be set to -1 during parser initialization;
++     use a signed type to avoid implicit conversion UB when assigning -1 */
++  int current_filename_index;
+ 
+   mrb_ast_node *nvars;
+ };
+diff --git a/src/array.c b/src/array.c
+index fc3b0a087..eead38666 100644
+--- a/src/array.c
++++ b/src/array.c
+@@ -750,7 +750,10 @@ mrb_ary_splice(mrb_state *mrb, mrb_value ary, mrb_int head, mrb_int len, mrb_val
+   }
+   tail = head + len;
+   if (alen < len || alen < tail) {
++    /* if requested len goes past the end of the array, clamp it
++       to the available elements and recompute tail accordingly */
+     len = alen - head;
++    tail = head + len;
+   }
+ 
+   /* size check */
+diff --git a/src/symbol.c b/src/symbol.c
+index 38730b34a..175fc75fe 100644
+--- a/src/symbol.c
++++ b/src/symbol.c
+@@ -125,12 +125,12 @@ symhash(const char *key, size_t len)
+ 
+     for(hash = i = 0; i < len; ++i) {
+         hash += key[i];
+-        hash += (hash << 10);
++        hash += (uint32_t)(((uint64_t)hash) << 10);
+         hash ^= (hash >> 6);
+     }
+-    hash += (hash << 3);
++    hash += (uint32_t)(((uint64_t)hash) << 3);
+     hash ^= (hash >> 11);
+-    hash += (hash << 15);
++    hash += (uint32_t)(((uint64_t)hash) << 15);
+     return hash & 0xff;
+ }

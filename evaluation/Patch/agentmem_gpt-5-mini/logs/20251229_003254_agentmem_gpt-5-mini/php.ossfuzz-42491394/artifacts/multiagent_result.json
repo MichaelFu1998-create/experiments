@@ -1,0 +1,211 @@
+{
+  "instance_id": "php.ossfuzz-42491394",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{ \"analysis_type\": \"memory\", \"findings\": [ { \"file\": \"Zend/zend_types.h\", \"line\": 553, \"message\": \"ASan stack-use-after-return occurs in zval_get_type reading a zval on stack; CodeQL memory scan produced no direct match at this line\", \"severity\": \"note\" }, { \"file\": \"ext/standard/var_unserializer.re\", \"line\": 849, \"message\": \"php_var_unserialize_internal is on the ASan stack trace (unserialize path); CodeQL did not report a direct memory issue here in the repository scan\", \"severity\": \"note\" }, { \"file\": \"ext/spl/spl_observer.c\", \"line\": 678, \"message\": \"zim_SplObjectStorage_unserialize frame contains local 'obj' whose stack address is referenced by ASan; CodeQL findings did not directly flag escaping stack references in this function\", \"severity\": \"note\" } ], \"dataflow_summary\": \"N/A - CodeQL dataflow scan did not produce a taint path linking untrusted input to an escaping stack zval in the specific files; the dataflow scan reported unrelated dangerous library calls elsewhere in the tree.\", \"key_insight\": \"Sanitizer indicates a zval allocated on the stack (in SplObjectStorage_unserialize/unserialize handler) escapes its stack frame and is later read by zval_get_type. Static CodeQL scans did not produce a direct match, suggesting the issue is a lifetime bug (pointer/reference to a local zval escapes) rather than a straightforward taint/overflow detected by CodeQL rules.\", \"fix_suggestions\": [ { \"approach\": \"Ensure values stored during unserialization are heap-allocated or copied (use ZVAL_COPY/ZVAL_DUP or appropriate AZ macros) before storing references into objects/containers.\", \"reasoning\": \"Root cause appears to be a pointer to a stack-allocated zval escaping its scope. Copying into GC-managed storage guarantees lifetime and prevents use-after-return.\", \"trade_offs\": \"Extra allocations and copies increase memory use and CPU cost; must be applied only where escaping references are possible to limit impact.\" }, { \"approach\": \"Change APIs/implementations to avoid storing pointers to local zvals: return zvals by value or require the caller to provide a target zval to receive the result.\", \"reasoning\": \"Refactoring prevents accidental escapes by design: callers store values in caller-managed storage rather than keeping addresses of callee locals.\", \"trade_offs\": \"Larger code changes and potential API churn; requires auditing call-sites and tests.\" }, { \"approach\": \"Add defensive validation in unserializer and SplObjectStorage_unserialize: detect and reject input patterns that would cause references to temporaries to be stored (or perform deep copy on such paths).\", \"reasoning\": \"Mitigation reduces attack surface without large refactors and can be implemented quickly to block known crafted inputs.\", \"trade_offs\": \"May be brittle and might break some edge-case valid serialized inputs; careful test coverage needed.\" } ] }",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "Zend/zend_types.h",
+          "line": 553,
+          "message": "ASan stack-use-after-return occurs in zval_get_type reading a zval on stack; CodeQL memory scan produced no direct match at this line",
+          "severity": "note"
+        },
+        {
+          "file": "ext/standard/var_unserializer.re",
+          "line": 849,
+          "message": "php_var_unserialize_internal is on the ASan stack trace (unserialize path); CodeQL did not report a direct memory issue here in the repository scan",
+          "severity": "note"
+        },
+        {
+          "file": "ext/spl/spl_observer.c",
+          "line": 678,
+          "message": "zim_SplObjectStorage_unserialize frame contains local 'obj' whose stack address is referenced by ASan; CodeQL findings did not directly flag escaping stack references in this function",
+          "severity": "note"
+        }
+      ],
+      "dataflow_summary": "N/A - CodeQL dataflow scan did not produce a taint path linking untrusted input to an escaping stack zval in the specific files; the dataflow scan reported unrelated dangerous library calls elsewhere in the tree.",
+      "key_insight": "Sanitizer indicates a zval allocated on the stack (in SplObjectStorage_unserialize/unserialize handler) escapes its stack frame and is later read by zval_get_type. Static CodeQL scans did not produce a direct match, suggesting the issue is a lifetime bug (pointer/reference to a local zval escapes) rather than a straightforward taint/overflow detected by CodeQL rules.",
+      "fix_suggestions": [
+        {
+          "approach": "Ensure values stored during unserialization are heap-allocated or copied (use ZVAL_COPY/ZVAL_DUP or appropriate AZ macros) before storing references into objects/containers.",
+          "reasoning": "Root cause appears to be a pointer to a stack-allocated zval escaping its scope. Copying into GC-managed storage guarantees lifetime and prevents use-after-return.",
+          "trade_offs": "Extra allocations and copies increase memory use and CPU cost; must be applied only where escaping references are possible to limit impact."
+        },
+        {
+          "approach": "Change APIs/implementations to avoid storing pointers to local zvals: return zvals by value or require the caller to provide a target zval to receive the result.",
+          "reasoning": "Refactoring prevents accidental escapes by design: callers store values in caller-managed storage rather than keeping addresses of callee locals.",
+          "trade_offs": "Larger code changes and potential API churn; requires auditing call-sites and tests."
+        },
+        {
+          "approach": "Add defensive validation in unserializer and SplObjectStorage_unserialize: detect and reject input patterns that would cause references to temporaries to be stored (or perform deep copy on such paths).",
+          "reasoning": "Mitigation reduces attack surface without large refactors and can be implemented quickly to block known crafted inputs.",
+          "trade_offs": "May be brittle and might break some edge-case valid serialized inputs; careful test coverage needed."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 43452,
+      "output_tokens": 3954
+    },
+    "timing": {
+      "start_time": 1769142374.4528897,
+      "end_time": 1769142472.6322815,
+      "duration": 98.17939186096191
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nStack-use-after-return in PHP's unserialization code (php_var_unserialize_internal / process_nested_data in ext/standard/var_unserializer.re). During deserialization of crafted input, zval_get_type ends up reading a zval that refers to stack memory which has gone out of scope, causing reads of invalid stack memory and lead",
+      "total_steps": 4,
+      "total_duration": 98.17939186096191,
+      "total_input_tokens": 43452,
+      "total_output_tokens": 3954,
+      "total_cost": 0.0064191,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x7efda5511328\",\n    \"type\": \"stack-use-after-return\",\n    \"location\": \"Zend/zend_types.h:553 (zval_get_type)\"\n  },\n  \"backtrace\": [\n    \"zval_get_type() at Zend/zend_types.h:553\",\n    \"php_var_unserialize_internal() at ext/standard/var_unserializer.re:849\",\n    \"process_nested_data() at ext/standard/var_unserializer.re:592\",\n    \"php_var_unserialize_internal() at ext/standard/var_unserializer.re:1024\",\n    \"php_var_unserialize() at ext/standard/var_unserializer.re:762\",\n    \"php_unserialize_with_options() at ext/standard/var.c:1247\",\n    \"zif_unserialize() at ext/standard/var.c:1297\",\n    \"zim_SplObjectStorage_unserialize() at ext/spl/spl_observer.c:678\",\n    \"... (caller frames in Zend VM: execute_ex, zend_execute, php_execute_script, main)\"\n  ],\n  \"memory_state\": \"ASan indicates a read of size 1 from address 0x7efda5511328 which is in the stack frame of zim_SplObjectStorage_unserialize (offset ~296 bytes inside local 'obj'). Shadow bytes show 'stack after return' (f5), i.e., the stack slot was used after the function returned and its stack space was reclaimed.\",\n  \"root_cause_hint\": \"During unserialization a zval that refers to stack-allocated storage (a local/temporary in zim_SplObjectStorage_unserialize or in var_unserializer functions) is stored or referenced beyond the lifetime of that stack frame. Later, zval_get_type reads that dangling stack memory, causing stack-use-after-return. The sanitizer backtrace and the ASan shadow bytes strongly point to a dangling pointer to a stack zval created during unserialize processing.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure any zval stored into long-lived structures during unserialization is heap-allocated or copied (use ZVAL_COPY / zval_copy_ctor or zend_hash_update with proper value copying) instead of storing pointers to stack temporaries.\",\n      \"reasoning\": \"The ASan report shows a dangling pointer to a stack slot. Copying zvals into heap-managed storage at the point they are inserted prevents use-after-return by ensuring the zval memory remains valid after the creating function returns.\",\n      \"trade_offs\": \"Increased memory usage and some CPU overhead from copying; requires careful refcount and GC handling to avoid leaks or double-frees. Backwards-incompatible if code relied on pointer aliasing semantics (unlikely in unserialize path).\"\n    },\n    {\n      \"approach\": \"Change var_unserializer APIs and internal helpers so they never expose pointers to stack-allocated zvals; instead return/assign zvals by value or provide an API that transfers ownership (always initialize and allocate the receiving zval).\",\n      \"reasoning\": \"A more structural fix that enforces ownership semantics and prevents callers from accidentally retaining pointers to stack-allocated temporaries. This reduces future classes of similar bugs.\",\n      \"trade_offs\": \"Requires refactoring of var_unserializer internals and possibly many call sites. Larger code change surface and greater review/testing burden, but yields a durable correctness improvement.\"\n    },\n    {\n      \"approach\": \"Add sanity checks / assertions in debug builds to detect when a zval points into stack memory (e.g., validate pointers against current stack bounds or use debug-only tagging) and fail-fast or copy when detected.\",\n      \"reasoning\": \"Helps catch violations during development and CI, making it easier to find the exact code path creating the dangling pointer without heavy refactors immediately.\",\n      \"trade_offs\": \"Debug-only checks do not fix the production bug and adding reliable detection at runtime can be non-trivial and potentially platform-specific. May add overhead and complexity to debug builds only.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb"
+      ],
+      "crash_info": {
+        "address": "0x7efda5511328",
+        "type": "stack-use-after-return",
+        "location": "Zend/zend_types.h:553 (zval_get_type)"
+      },
+      "backtrace": [
+        "zval_get_type() at Zend/zend_types.h:553",
+        "php_var_unserialize_internal() at ext/standard/var_unserializer.re:849",
+        "process_nested_data() at ext/standard/var_unserializer.re:592",
+        "php_var_unserialize_internal() at ext/standard/var_unserializer.re:1024",
+        "php_var_unserialize() at ext/standard/var_unserializer.re:762",
+        "php_unserialize_with_options() at ext/standard/var.c:1247",
+        "zif_unserialize() at ext/standard/var.c:1297",
+        "zim_SplObjectStorage_unserialize() at ext/spl/spl_observer.c:678",
+        "... (caller frames in Zend VM: execute_ex, zend_execute, php_execute_script, main)"
+      ],
+      "memory_state": "ASan indicates a read of size 1 from address 0x7efda5511328 which is in the stack frame of zim_SplObjectStorage_unserialize (offset ~296 bytes inside local 'obj'). Shadow bytes show 'stack after return' (f5), i.e., the stack slot was used after the function returned and its stack space was reclaimed.",
+      "root_cause_hint": "During unserialization a zval that refers to stack-allocated storage (a local/temporary in zim_SplObjectStorage_unserialize or in var_unserializer functions) is stored or referenced beyond the lifetime of that stack frame. Later, zval_get_type reads that dangling stack memory, causing stack-use-after-return. The sanitizer backtrace and the ASan shadow bytes strongly point to a dangling pointer to a stack zval created during unserialize processing.",
+      "fix_suggestions": [
+        {
+          "approach": "Ensure any zval stored into long-lived structures during unserialization is heap-allocated or copied (use ZVAL_COPY / zval_copy_ctor or zend_hash_update with proper value copying) instead of storing pointers to stack temporaries.",
+          "reasoning": "The ASan report shows a dangling pointer to a stack slot. Copying zvals into heap-managed storage at the point they are inserted prevents use-after-return by ensuring the zval memory remains valid after the creating function returns.",
+          "trade_offs": "Increased memory usage and some CPU overhead from copying; requires careful refcount and GC handling to avoid leaks or double-frees. Backwards-incompatible if code relied on pointer aliasing semantics (unlikely in unserialize path)."
+        },
+        {
+          "approach": "Change var_unserializer APIs and internal helpers so they never expose pointers to stack-allocated zvals; instead return/assign zvals by value or provide an API that transfers ownership (always initialize and allocate the receiving zval).",
+          "reasoning": "A more structural fix that enforces ownership semantics and prevents callers from accidentally retaining pointers to stack-allocated temporaries. This reduces future classes of similar bugs.",
+          "trade_offs": "Requires refactoring of var_unserializer internals and possibly many call sites. Larger code change surface and greater review/testing burden, but yields a durable correctness improvement."
+        },
+        {
+          "approach": "Add sanity checks / assertions in debug builds to detect when a zval points into stack memory (e.g., validate pointers against current stack bounds or use debug-only tagging) and fail-fast or copy when detected.",
+          "reasoning": "Helps catch violations during development and CI, making it easier to find the exact code path creating the dangling pointer without heavy refactors immediately.",
+          "trade_offs": "Debug-only checks do not fix the production bug and adding reliable detection at runtime can be non-trivial and potentially platform-specific. May add overhead and complexity to debug builds only."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 27481,
+      "output_tokens": 3403
+    },
+    "timing": {
+      "start_time": 1769142472.6379173,
+      "end_time": 1769142544.0813215,
+      "duration": 71.44340419769287
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nStack-use-after-return in PHP's unserialization code (php_var_unserialize_internal / process_nested_data in ext/standard/var_unserializer.re). During deserialization of crafted input, zval_get_type ends up reading a zval that refers to stack memory which has gone out of scope, causing reads of invalid stack memory and lead",
+      "total_steps": 3,
+      "total_duration": 71.44340419769287,
+      "total_input_tokens": 27481,
+      "total_output_tokens": 3403,
+      "total_cost": 0.0042317249999999995,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"ext/standard/var_unserializer.re\",\n  \"function_analyzed\": \"php_var_unserialize_internal\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"e219ec1\",\n      \"message\": \"Implement typed properties\",\n      \"changes\": \"Added ref_props HashTable, introduced typed properties handling, changed process_nested_data signature to accept zend_object *obj and added zend_property_info *info usage.\",\n      \"relevance\": \"Introduces new typed-property logic and stores/uses property info; changing how property data is tracked likely introduced lifetime issues (pointers to property-related data).\")\n    },\n    {\n      \"hash\": \"1806ce9\",\n      \"message\": \"Add max_depth option to unserialize()\",\n      \"changes\": \"Added cur_depth/max_depth fields and accessor helpers to php_unserialize_data_t; adjusted unserialization flow to track depth.\",\n      \"relevance\": \"Changes to control flow and state around recursive unserialization; less directly causal but modifies call paths and data carried through unserialize routines that interact with typed-property handling.\")\n    },\n    {\n      \"hash\": \"f5b9362\",\n      \"message\": \"Fix unserialization ref source management, again\",\n      \"changes\": \"Ensure type source is registered even if unserialization fails for a property; added handling to add ZEND_REF_ADD_TYPE_SOURCE when info && Z_ISREF_P(data).\",\n      \"relevance\": \"Tweaks ref source registration logic around properties/refs; demonstrates area where ref/source bookkeeping was brittle and can lead to incorrect ownership/lifetime assumptions.\")\n    }\n  ],\n  \"vulnerability_origin\": \"The typed-properties changes introduced property-info based bookkeeping (ref_props and info pointers) and altered process_nested_data. Those changes allowed references to property-related data (or zvals) with insufficient lifetime management, creating stack-use-after-return when a zval/type-source referenced stack memory that later went out of scope.\",\n  \"fix_hints\": \"History shows ref_props was introduced to track property type sources but subsequent fixes adjusted when sources are registered. Use that mechanism to store persistent copies (or indices) instead of raw pointers to stack objects; ensure registration occurs using heap-backed storage for type sources.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure any type-source or property-related zval recorded during unserialization is stored in heap-backed storage (e.g., ref_props HashTable) by making a persistent copy (ZVAL_COPY) and registering that as the source.\",\n      \"reasoning\": \"Matches the intended use of ref_props introduced in history; copying into the var_unserialize_data-owned table prevents references to stack locals and preserves lifetime.\",\n      \"trade_offs\": \"Additional memory/copy overhead and need to free the copies in var_destroy; small runtime cost but safe and simple.\")\n    },\n    {\n      \"approach\": \"Do not store raw zend_property_info* or pointers into caller stack. Instead store an identifier (property name or offset) and resolve property info on demand from the object's persistent metadata.\",\n      \"reasoning\": \"Avoids lifetime coupling to caller stack frames; property metadata is available from the class entry and is stable.\",\n      \"trade_offs\": \"Extra lookups on access and slightly more complex code paths, but no extra heap allocations.\")\n    },\n    {\n      \"approach\": \"Add defensive checks and unit tests: assert that any object pointer used for property registration is heap-allocated/valid, and add ASan/OSS-Fuzz style tests that reproduce stack-use-after-return patterns.\",\n      \"reasoning\": \"Catches regressions and ensures future changes maintain correct lifetimes.\",\n      \"trade_offs\": \"Introduces runtime checks (can be #ifdef DEBUG) and requires test maintenance.\")\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"ext/standard/var_unserializer.re\",\n  \"function_analyzed\": \"php_var_unserialize_internal\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"e219ec1\",\n      \"message\": \"Implement typed properties\",\n      \"changes\": \"Added ref_props HashTable, introduced typed properties handling, changed process_nested_data signature to accept zend_object *obj and added zend_property_info *info usage.\",\n      \"relevance\": \"Introduces new typed-property logic and stores/uses property info; changing how property data is tracked likely introduced lifetime issues (pointers to property-related data).\")\n    },\n    {\n      \"hash\": \"1806ce9\",\n      \"message\": \"Add max_depth option to unserialize()\",\n      \"changes\": \"Added cur_depth/max_depth fields and accessor helpers to php_unserialize_data_t; adjusted unserialization flow to track depth.\",\n      \"relevance\": \"Changes to control flow and state around recursive unserialization; less directly causal but modifies call paths and data carried through unserialize routines that interact with typed-property handling.\")\n    },\n    {\n      \"hash\": \"f5b9362\",\n      \"message\": \"Fix unserialization ref source management, again\",\n      \"changes\": \"Ensure type source is registered even if unserialization fails for a property; added handling to add ZEND_REF_ADD_TYPE_SOURCE when info && Z_ISREF_P(data).\",\n      \"relevance\": \"Tweaks ref source registration logic around properties/refs; demonstrates area where ref/source bookkeeping was brittle and can lead to incorrect ownership/lifetime assumptions.\")\n    }\n  ],\n  \"vulnerability_origin\": \"The typed-properties changes introduced property-info based bookkeeping (ref_props and info pointers) and altered process_nested_data. Those changes allowed references to property-related data (or zvals) with insufficient lifetime management, creating stack-use-after-return when a zval/type-source referenced stack memory that later went out of scope.\",\n  \"fix_hints\": \"History shows ref_props was introduced to track property type sources but subsequent fixes adjusted when sources are registered. Use that mechanism to store persistent copies (or indices) instead of raw pointers to stack objects; ensure registration occurs using heap-backed storage for type sources.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure any type-source or property-related zval recorded during unserialization is stored in heap-backed storage (e.g., ref_props HashTable) by making a persistent copy (ZVAL_COPY) and registering that as the source.\",\n      \"reasoning\": \"Matches the intended use of ref_props introduced in history; copying into the var_unserialize_data-owned table prevents references to stack locals and preserves lifetime.\",\n      \"trade_offs\": \"Additional memory/copy overhead and need to free the copies in var_destroy; small runtime cost but safe and simple.\")\n    },\n    {\n      \"approach\": \"Do not store raw zend_property_info* or pointers into caller stack. Instead store an identifier (property name or offset) and resolve property info on demand from the object's persistent metadata.\",\n      \"reasoning\": \"Avoids lifetime coupling to caller stack frames; property metadata is available from the class entry and is stable.\",\n      \"trade_offs\": \"Extra lookups on access and slightly more complex code paths, but no extra heap allocations.\")\n    },\n    {\n      \"approach\": \"Add defensive checks and unit tests: assert that any object pointer used for property registration is heap-allocated/valid, and add ASan/OSS-Fuzz style tests that reproduce stack-use-after-return patterns.\",\n      \"reasoning\": \"Catches regressions and ensures future changes maintain correct lifetimes.\",\n      \"trade_offs\": \"Introduces runtime checks (can be #ifdef DEBUG) and requires test maintenance.\")\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 35968,
+      "output_tokens": 5381
+    },
+    "timing": {
+      "start_time": 1769142544.0845134,
+      "end_time": 1769143424.9231207,
+      "duration": 880.8386073112488
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nStack-use-after-return in PHP's unserialization code (php_var_unserialize_internal / process_nested_data in ext/standard/var_unserializer.re). During deserialization of crafted input, zval_get_type ends up reading a zval that refers to stack memory which has gone out of scope, causing reads of invalid stack memory and lead",
+      "total_steps": 4,
+      "total_duration": 880.8386073112488,
+      "total_input_tokens": 35968,
+      "total_output_tokens": 5381,
+      "total_cost": 0.0063202,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\"root_cause\":\"During unserialization SplObjectStorage code stored addresses of zvals that lived on the local stack (stack-allocated temporaries). These addresses were later read after the stack frame returned (zval_get_type), causing stack-use-after-return.\",\"fix_approach\":\"Ensure any zvals that may escape the current stack frame are backed by heap-managed temporaries owned by the unserialize context. Use var_tmp_var() to allocate temporary zvals in the php_unserialize_data_t dtor list and copy values (ZVAL_COPY / ZVAL_OBJ into those temps) before storing references into var_hash or passing them to container functions. Replace usages that took addresses of local zvals (&entry, &inf, &obj) with pointers returned from var_tmp_var() (entry/inf are now var_tmp_var() slots), and store element->obj into a temp zval before calling var_replace so the stored pointer remains valid after the function returns.\",\"files_modified\":[\"ext/spl/spl_observer.c\"],\"verification\":{\"build_success\":true,\"repro_success\":true,\"exit_code\":0,\"asan_output\":\"No sanitizer errors detected\"},\"confidence\":\"high\"}",
+    "parsed_output": {
+      "root_cause": "During unserialization SplObjectStorage code stored addresses of zvals that lived on the local stack (stack-allocated temporaries). These addresses were later read after the stack frame returned (zval_get_type), causing stack-use-after-return.",
+      "fix_approach": "Ensure any zvals that may escape the current stack frame are backed by heap-managed temporaries owned by the unserialize context. Use var_tmp_var() to allocate temporary zvals in the php_unserialize_data_t dtor list and copy values (ZVAL_COPY / ZVAL_OBJ into those temps) before storing references into var_hash or passing them to container functions. Replace usages that took addresses of local zvals (&entry, &inf, &obj) with pointers returned from var_tmp_var() (entry/inf are now var_tmp_var() slots), and store element->obj into a temp zval before calling var_replace so the stored pointer remains valid after the function returns.",
+      "files_modified": [
+        "ext/spl/spl_observer.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 3301373,
+      "output_tokens": 72946
+    },
+    "timing": {
+      "start_time": 1769143424.926865,
+      "end_time": 1769144481.8751626,
+      "duration": 1056.9482975006104
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nStack-use-after-return in PHP's unserialization code (php_var_unserialize_internal / process_nested_data in ext/standard/var_unserializer.re). During deserialization of crafted input, zval_get_type ends up reading a zval that refers to stack memory which has gone out of scope, causing reads of invalid stack memory and lead",
+      "total_steps": 68,
+      "total_duration": 1056.9482975006104,
+      "total_input_tokens": 3301373,
+      "total_output_tokens": 72946,
+      "total_cost": 0.145043225,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 3408274,
+    "output_tokens": 85684
+  },
+  "timing": {
+    "total_duration": 2107.4468483924866
+  }
+}

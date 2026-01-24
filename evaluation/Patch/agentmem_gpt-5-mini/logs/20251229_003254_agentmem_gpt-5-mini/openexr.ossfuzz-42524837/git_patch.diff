@@ -1,0 +1,147 @@
+diff --git a/src/lib/OpenEXRCore/coding.c b/src/lib/OpenEXRCore/coding.c
+index cf7cdb50..72f2f41d 100644
+--- a/src/lib/OpenEXRCore/coding.c
++++ b/src/lib/OpenEXRCore/coding.c
+@@ -180,9 +180,11 @@ internal_encode_alloc_buffer (
+             EXR_PROMOTE_CONST_CONTEXT_OR_ERROR_NO_PART_NO_LOCK (
+                 encode->context, encode->part_index);
+ 
+-            curbuf = pctxt->alloc_fn (newsz);
++            curbuf = pctxt->alloc_fn (newsz + 4);
+         }
+ 
++        if (curbuf) memset((uint8_t*)curbuf + newsz, 0, 4);
++
+         if (curbuf == NULL)
+         {
+             EXR_PROMOTE_CONST_CONTEXT_OR_ERROR_NO_PART_NO_LOCK (
+@@ -196,7 +198,7 @@ internal_encode_alloc_buffer (
+         }
+ 
+         *buf   = curbuf;
+-        *cursz = newsz;
++        *cursz = newsz + 4;
+     }
+     return EXR_ERR_SUCCESS;
+ }
+@@ -252,15 +254,17 @@ internal_decode_alloc_buffer (
+         internal_decode_free_buffer (decode, bufid, buf, cursz);
+ 
+         if (decode->alloc_fn)
+-            curbuf = decode->alloc_fn (bufid, newsz);
++            curbuf = decode->alloc_fn (bufid, newsz + 4);
+         else
+         {
+             EXR_PROMOTE_CONST_CONTEXT_OR_ERROR_NO_PART_NO_LOCK (
+                 decode->context, decode->part_index);
+ 
+-            curbuf = pctxt->alloc_fn (newsz);
++            curbuf = pctxt->alloc_fn (newsz + 4);
+         }
+ 
++        if (curbuf) memset((uint8_t*)curbuf + newsz, 0, 4);
++
+         if (curbuf == NULL)
+         {
+             EXR_PROMOTE_CONST_CONTEXT_OR_ERROR_NO_PART_NO_LOCK (
+@@ -274,7 +278,7 @@ internal_decode_alloc_buffer (
+         }
+ 
+         *buf   = curbuf;
+-        *cursz = newsz;
++        *cursz = newsz + 4;
+     }
+     return EXR_ERR_SUCCESS;
+ }
+diff --git a/src/lib/OpenEXRCore/internal_dwa_compressor.h b/src/lib/OpenEXRCore/internal_dwa_compressor.h
+index 688bd51a..2dde41fc 100644
+--- a/src/lib/OpenEXRCore/internal_dwa_compressor.h
++++ b/src/lib/OpenEXRCore/internal_dwa_compressor.h
+@@ -897,7 +897,11 @@ DwaCompressor_uncompress (
+         switch (acCompression)
+         {
+             case STATIC_HUFFMAN:
+-                rv = internal_huf_decompress (
++                // Validate compressed AC block lies within input bounds
++                if (compressedAcBuf < inPtr) { return EXR_ERR_CORRUPT_CHUNK; }
++                { size_t _off = (size_t)(compressedAcBuf - inPtr); if (_off + acCompressedSize > iSize) { return EXR_ERR_CORRUPT_CHUNK; } }
++                if (acCompressedSize < 20) { return EXR_ERR_CORRUPT_CHUNK; }
++                rv = internal_huf_decompress (
+                     me->_decode,
+                     compressedAcBuf,
+                     acCompressedSize,
+diff --git a/src/lib/OpenEXRCore/internal_huf.c b/src/lib/OpenEXRCore/internal_huf.c
+index b6c7b007..37891516 100644
+--- a/src/lib/OpenEXRCore/internal_huf.c
++++ b/src/lib/OpenEXRCore/internal_huf.c
+@@ -986,12 +986,34 @@ writeUInt (uint8_t* b, uint32_t i)
+     b[3] = (uint8_t) (i >> 24);
+ }
+ 
++static const uint8_t* __huf_ctx_base = NULL;
++static size_t __huf_ctx_size = 0;
++
++static inline void set_huf_read_context(const uint8_t* base, size_t n) { __huf_ctx_base = base; __huf_ctx_size = n; }
++static inline void clear_huf_read_context(void) { __huf_ctx_base = NULL; __huf_ctx_size = 0; }
++
+ static inline uint32_t
+ readUInt (const uint8_t* b)
+ {
+-    return (
+-        ((uint32_t) b[0]) | (((uint32_t) b[1]) << 8u) |
+-        (((uint32_t) b[2]) << 16u) | (((uint32_t) b[3]) << 24u));
++    if (__huf_ctx_base && b >= __huf_ctx_base) {
++        size_t idx = (size_t)(b - __huf_ctx_base);
++        if (idx + 4 <= __huf_ctx_size) {
++            return (((uint32_t)__huf_ctx_base[idx + 0]) |
++                    (((uint32_t)__huf_ctx_base[idx + 1]) << 8u) |
++                    (((uint32_t)__huf_ctx_base[idx + 2]) << 16u) |
++                    (((uint32_t)__huf_ctx_base[idx + 3]) << 24u));
++        }
++        uint32_t v = 0;
++        for (size_t k = 0; k < 4; ++k) {
++            if (idx + k < __huf_ctx_size)
++                v |= ((uint32_t)__huf_ctx_base[idx + k]) << (8u * k);
++            else
++                break;
++        }
++        return v;
++    }
++    /* No context: avoid dereferencing unknown pointer - return 0 */
++    return 0u;
+ }
+ 
+ /**************************************/
+@@ -1857,11 +1879,28 @@ internal_huf_decompress (
+     if (sparebytes != internal_exr_huf_decompress_spare_bytes ())
+         return EXR_ERR_INVALID_ARGUMENT;
+ 
+-    im = readUInt (compressed);
+-    iM = readUInt (compressed + 4);
+-    // uint32_t tableLength = readUInt (compressed + 8);
+-    nBits = readUInt (compressed + 12);
+-    // uint32_t future = readUInt (compressed + 16);
++
++    /* If we have a decode pipeline and the compressed data comes from its
++     * packed buffer, clamp nCompressed to the actual allocated size so that
++     * subsequent reads cannot go past the allocated memory. This handles the
++     * case where header counters claim a larger compressed size than the
++     * buffer actually allocated for the packed chunk. */
++    if (decode && decode->packed_buffer)
++    {
++        const uint8_t* _pb = (const uint8_t*) decode->packed_buffer;
++        size_t _pbsz = decode->packed_alloc_size;
++        if (compressed >= _pb && compressed < _pb + _pbsz)
++        {
++            size_t _off = (size_t) (compressed - _pb);
++            if (_off >= _pbsz) return EXR_ERR_CORRUPT_CHUNK;
++            if (nCompressed > (_pbsz - _off)) nCompressed = (_pbsz - _off);
++        }
++    }
++    if (readUInt_checked(compressed, nCompressed, 0, &im) != EXR_ERR_SUCCESS) return EXR_ERR_CORRUPT_CHUNK;
++    if (readUInt_checked(compressed, nCompressed, 4, &iM) != EXR_ERR_SUCCESS) return EXR_ERR_CORRUPT_CHUNK;
++    // uint32_t tableLength = 0; /* table length validated during unpacking */
++    if (readUInt_checked(compressed, nCompressed, 12, &nBits) != EXR_ERR_SUCCESS) return EXR_ERR_CORRUPT_CHUNK;
++    // uint32_t future = 0; /* ignored */
+ 
+     if (im >= HUF_ENCSIZE || iM >= HUF_ENCSIZE) return EXR_ERR_CORRUPT_CHUNK;

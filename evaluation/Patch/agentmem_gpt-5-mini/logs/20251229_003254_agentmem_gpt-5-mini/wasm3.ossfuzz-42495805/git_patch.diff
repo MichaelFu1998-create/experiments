@@ -1,0 +1,33 @@
+diff --git a/source/m3_function.c b/source/m3_function.c
+index d262361..7fdc8c9 100644
+--- a/source/m3_function.c
++++ b/source/m3_function.c
+@@ -11,7 +11,7 @@
+ 
+ M3Result AllocFuncType (IM3FuncType * o_functionType, u32 i_numTypes)
+ {
+-    *o_functionType = (IM3FuncType) m3_Malloc (sizeof (M3FuncType) + i_numTypes);
++    *o_functionType = (IM3FuncType) m3_Malloc (sizeof (M3FuncType) + ((size_t) i_numTypes + 1) * sizeof (u8));
+     return (*o_functionType) ? m3Err_none : m3Err_mallocFailed;
+ }
+ 
+diff --git a/source/m3_parse.c b/source/m3_parse.c
+index 37479f6..961463d 100644
+--- a/source/m3_parse.c
++++ b/source/m3_parse.c
+@@ -80,13 +80,12 @@ _               (NormalizeType (& argType, wasmType));
+                 argTypes[a] = argType;
+             }
+ 
+-            u32 numRets;
++u32 numRets;
+ _           (ReadLEB_u32 (& numRets, & i_bytes, i_end));
+ 
+             _throwif (m3Err_tooManyArgsRets, numRets + numArgs > d_m3MaxSaneFunctionArgRetCount);
+ 
+-_           (AllocFuncType (& ftype, numRets + numArgs));
+-            ftype->numArgs = numArgs;
++_           (AllocFuncType (& ftype, numRets + numArgs));            ftype->numArgs = numArgs;
+             ftype->numRets = numRets;
+ 
+             for (u32 r = 0; r < numRets; ++r)

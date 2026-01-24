@@ -1,0 +1,252 @@
+{
+  "instance_id": "matio.ossfuzz-42535678",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\"analysis_type\":\"memory\",\"findings\":[{\"file\":\"/src/matio/src/mat.c\",\"line\":2448,\"message\":\"Potential out-of-bounds read in Mat_VarPrint when iterating sparse index/data arrays (matches ASan heap-buffer-overflow report)\",\"severity\":\"error\"},{\"file\":\"/src/matio/src/mat.c\",\"line\":91,\"message\":\"Suspicious array access with potentially unsafe index (CodeQL memory finding)\",\"severity\":\"warning\"},{\"file\":\"/src/matio/src/mat5.c\",\"line\":526,\"message\":\"Allocation of sparse index/data buffers via calloc in ReadSparse (sanitizer shows allocation here); CodeQL reports many suspicious accesses in mat5.c\",\"severity\":\"warning\"}],\"dataflow_summary\":\"CodeQL dataflow results are limited to test files (sprintf calls). No dataflow/taint path from external MAT file parsing into Mat_VarPrint was reported by the dataflow run.\",\"key_insight\":\"Mat_VarPrint iterates sparse matrix index/data arrays without robust bounds checks against the actual allocated lengths provided by ReadSparse/Mat_VarRead5. A loop index can exceed the allocated array length, producing heap-buffer-overflow (ASan stack trace corroborates).\",\"fix_suggestions\":[{\"approach\":\"Add explicit bounds checks in Mat_VarPrint before reading index/data arrays (check loop index < allocated_length or nnz)\",\"reasoning\":\"Directly addresses the root cause where reads use an unchecked index. Minimal change footprint and prevents OOB reads during printing.\",\"trade_offs\":\"Requires reliable tracking of allocated lengths/nnz; may mask malformed files by truncating output rather than parsing further.\"},{\"approach\":\"Validate and canonicalize sparse-format metadata in ReadSparse/Mat_VarRead5 when allocating buffers (reject or sanitize inconsistent sizes)\",\"reasoning\":\"Stops malformed or malicious MAT files earlier, preventing mismatched allocation vs expected counts and avoiding downstream OOB accesses.\",\"trade_offs\":\"Larger change surface in reader code; may break behaviour for slightly malformed but recoverable files; needs careful spec-driven checks.\"},{\"approach\":\"Limit printing routines to use safe accessor helpers that always take buffer length (use size_t lengths, guard against overflow, and return errors on mismatch)\",\"reasoning\":\"Encapsulates safety into helpers reducing repeated checks and future errors; improves maintainability.\",\"trade_offs\":\"Requires refactoring and adding helper APIs; initial effort higher but yields safer code long-term.\"}],\"preferred_fix\":\"Add explicit bounds checks in Mat_VarPrint using the actual allocated lengths/nnz (approach 1). This is the most direct, low-risk fix: validate loop bounds before each read, report/abort on inconsistency, and use defensive min() when printing to avoid OOB reads.\"}",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "/src/matio/src/mat.c",
+          "line": 2448,
+          "message": "Potential out-of-bounds read in Mat_VarPrint when iterating sparse index/data arrays (matches ASan heap-buffer-overflow report)",
+          "severity": "error"
+        },
+        {
+          "file": "/src/matio/src/mat.c",
+          "line": 91,
+          "message": "Suspicious array access with potentially unsafe index (CodeQL memory finding)",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/matio/src/mat5.c",
+          "line": 526,
+          "message": "Allocation of sparse index/data buffers via calloc in ReadSparse (sanitizer shows allocation here); CodeQL reports many suspicious accesses in mat5.c",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "CodeQL dataflow results are limited to test files (sprintf calls). No dataflow/taint path from external MAT file parsing into Mat_VarPrint was reported by the dataflow run.",
+      "key_insight": "Mat_VarPrint iterates sparse matrix index/data arrays without robust bounds checks against the actual allocated lengths provided by ReadSparse/Mat_VarRead5. A loop index can exceed the allocated array length, producing heap-buffer-overflow (ASan stack trace corroborates).",
+      "fix_suggestions": [
+        {
+          "approach": "Add explicit bounds checks in Mat_VarPrint before reading index/data arrays (check loop index < allocated_length or nnz)",
+          "reasoning": "Directly addresses the root cause where reads use an unchecked index. Minimal change footprint and prevents OOB reads during printing.",
+          "trade_offs": "Requires reliable tracking of allocated lengths/nnz; may mask malformed files by truncating output rather than parsing further."
+        },
+        {
+          "approach": "Validate and canonicalize sparse-format metadata in ReadSparse/Mat_VarRead5 when allocating buffers (reject or sanitize inconsistent sizes)",
+          "reasoning": "Stops malformed or malicious MAT files earlier, preventing mismatched allocation vs expected counts and avoiding downstream OOB accesses.",
+          "trade_offs": "Larger change surface in reader code; may break behaviour for slightly malformed but recoverable files; needs careful spec-driven checks."
+        },
+        {
+          "approach": "Limit printing routines to use safe accessor helpers that always take buffer length (use size_t lengths, guard against overflow, and return errors on mismatch)",
+          "reasoning": "Encapsulates safety into helpers reducing repeated checks and future errors; improves maintainability.",
+          "trade_offs": "Requires refactoring and adding helper APIs; initial effort higher but yields safer code long-term."
+        }
+      ],
+      "preferred_fix": "Add explicit bounds checks in Mat_VarPrint using the actual allocated lengths/nnz (approach 1). This is the most direct, low-risk fix: validate loop bounds before each read, report/abort on inconsistency, and use defensive min() when printing to avoid OOB reads."
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 23506,
+      "output_tokens": 1974
+    },
+    "timing": {
+      "start_time": 1769091813.8710232,
+      "end_time": 1769091873.9623592,
+      "duration": 60.0913360118866
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nHeap-based buffer overflow in Mat_VarPrint (src/matio/src/mat.c). While printing sparse matrix variables the function can read past the end of sparse index/data arrays (memory allocated by ReadSparse in mat5.c) due to insufficient bounds checking of the loop index, leading to out-of-bounds reads. This can cause memory corrupti",
+      "total_steps": 3,
+      "total_duration": 60.0913360118866,
+      "total_input_tokens": 23506,
+      "total_output_tokens": 1974,
+      "total_cost": 0.00341465,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\", \"valgrind\"],\n  \"crash_info\": {\n    \"address\": \"0x502000000094\",\n    \"type\": \"heap-buffer-overflow\",\n    \"location\": \"/src/matio/src/mat.c:2448\"\n  },\n  \"backtrace\": [\n    \"Mat_VarPrint at /src/matio/src/mat.c:2448:69\",\n    \"main at /src/matio/tools/matdump.c:933:17\",\n    \"__libc_start_main at /build/glibc-.../csu/libc-start.c:308:16\",\n    \"_start in tools/matdump\",\n    \"calloc (asan wrapper) at asan_malloc_linux.cpp:75\",\n    \"ReadSparse at /src/matio/src/mat5.c:526:26\",\n    \"Mat_VarRead5 at /src/matio/src/mat5.c:3389:26\",\n    \"ReadData at /src/matio/src/mat.c:109:16\",\n    \"Mat_VarReadNextPredicate at /src/matio/src/mat.c:2837:29\"\n  ],\n  \"memory_state\": \"AddressSanitizer shows the sparse arrays were allocated by ReadSparse (via calloc). A 4-byte region was allocated at [0x502000000090,0x502000000094). The crash is a 4-byte read at 0x502000000094 \u2014 i.e. a read exactly one element past the allocated region (offset +4).\",\n  \"root_cause_hint\": \"Dynamic evidence points to insufficient bounds checking in Mat_VarPrint when iterating sparse matrix index/data arrays allocated by ReadSparse. The function reads one element past the allocated buffer (likely an off-by-one: loop upper bound is incorrect or uses nzmax/nz interchangeably with the actual nonzero count).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add strict bounds checks in Mat_VarPrint before reading sparse index/data arrays (ensure loop uses i < actual_nonzero_count and validate pointers/lengths).\",\n      \"reasoning\": \"The immediate crash is a read past the end while printing; adding element-level checks prevents out-of-bounds reads regardless of upstream parsing errors. This is a minimal, localized fix directly addressing the ASan evidence.\",\n      \"trade_offs\": \"Small runtime cost for additional checks when printing. Keeps behavior stable and is low-risk; does not address upstream malformed metadata but prevents crash/info leak during printing.\"\n    },\n    {\n      \"approach\": \"Validate and normalize sparse-array metadata in ReadSparse (ensure counts like nz, nzmax, and allocated lengths are consistent) and propagate an explicit element count to consumers like Mat_VarPrint.\",\n      \"reasoning\": \"If ReadSparse ensures it sets correct counts and allocates correct sizes, callers cannot mistakenly iterate past the end. This fixes root cause in the parser and improves overall robustness for malformed files.\",\n      \"trade_offs\": \"May require more changes in mat5.c and APIs (ensure all callers use the corrected count). Slightly larger patch surface but fixes parsing invariant rather than only printing symptom.\"\n    },\n    {\n      \"approach\": \"Introduce defensive APIs/wrappers for accessing sparse data (accessor functions that check bounds) and add unit tests / fuzz tests for malformed sparse metadata.\",\n      \"reasoning\": \"Encapsulating access and adding tests prevents regressions and hard-to-find crashes, and helps validate behavior across versions and inputs.\",\n      \"trade_offs\": \"Larger refactor, additional code and tests to maintain. Longer-term benefit in safety and test coverage.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "valgrind"
+      ],
+      "crash_info": {
+        "address": "0x502000000094",
+        "type": "heap-buffer-overflow",
+        "location": "/src/matio/src/mat.c:2448"
+      },
+      "backtrace": [
+        "Mat_VarPrint at /src/matio/src/mat.c:2448:69",
+        "main at /src/matio/tools/matdump.c:933:17",
+        "__libc_start_main at /build/glibc-.../csu/libc-start.c:308:16",
+        "_start in tools/matdump",
+        "calloc (asan wrapper) at asan_malloc_linux.cpp:75",
+        "ReadSparse at /src/matio/src/mat5.c:526:26",
+        "Mat_VarRead5 at /src/matio/src/mat5.c:3389:26",
+        "ReadData at /src/matio/src/mat.c:109:16",
+        "Mat_VarReadNextPredicate at /src/matio/src/mat.c:2837:29"
+      ],
+      "memory_state": "AddressSanitizer shows the sparse arrays were allocated by ReadSparse (via calloc). A 4-byte region was allocated at [0x502000000090,0x502000000094). The crash is a 4-byte read at 0x502000000094 \u2014 i.e. a read exactly one element past the allocated region (offset +4).",
+      "root_cause_hint": "Dynamic evidence points to insufficient bounds checking in Mat_VarPrint when iterating sparse matrix index/data arrays allocated by ReadSparse. The function reads one element past the allocated buffer (likely an off-by-one: loop upper bound is incorrect or uses nzmax/nz interchangeably with the actual nonzero count).",
+      "fix_suggestions": [
+        {
+          "approach": "Add strict bounds checks in Mat_VarPrint before reading sparse index/data arrays (ensure loop uses i < actual_nonzero_count and validate pointers/lengths).",
+          "reasoning": "The immediate crash is a read past the end while printing; adding element-level checks prevents out-of-bounds reads regardless of upstream parsing errors. This is a minimal, localized fix directly addressing the ASan evidence.",
+          "trade_offs": "Small runtime cost for additional checks when printing. Keeps behavior stable and is low-risk; does not address upstream malformed metadata but prevents crash/info leak during printing."
+        },
+        {
+          "approach": "Validate and normalize sparse-array metadata in ReadSparse (ensure counts like nz, nzmax, and allocated lengths are consistent) and propagate an explicit element count to consumers like Mat_VarPrint.",
+          "reasoning": "If ReadSparse ensures it sets correct counts and allocates correct sizes, callers cannot mistakenly iterate past the end. This fixes root cause in the parser and improves overall robustness for malformed files.",
+          "trade_offs": "May require more changes in mat5.c and APIs (ensure all callers use the corrected count). Slightly larger patch surface but fixes parsing invariant rather than only printing symptom."
+        },
+        {
+          "approach": "Introduce defensive APIs/wrappers for accessing sparse data (accessor functions that check bounds) and add unit tests / fuzz tests for malformed sparse metadata.",
+          "reasoning": "Encapsulating access and adding tests prevents regressions and hard-to-find crashes, and helps validate behavior across versions and inputs.",
+          "trade_offs": "Larger refactor, additional code and tests to maintain. Longer-term benefit in safety and test coverage."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 25310,
+      "output_tokens": 2797
+    },
+    "timing": {
+      "start_time": 1769091873.966055,
+      "end_time": 1769091939.0099258,
+      "duration": 65.04387092590332
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nHeap-based buffer overflow in Mat_VarPrint (src/matio/src/mat.c). While printing sparse matrix variables the function can read past the end of sparse index/data arrays (memory allocated by ReadSparse in mat5.c) due to insufficient bounds checking of the loop index, leading to out-of-bounds reads. This can cause memory corrupti",
+      "total_steps": 3,
+      "total_duration": 65.04387092590332,
+      "total_input_tokens": 25310,
+      "total_output_tokens": 2797,
+      "total_cost": 0.0036135499999999997,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"src/matio/src/mat.c\",\n  \"function_analyzed\": \"Mat_VarPrint\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"b621938\",\n      \"message\": \"Check for valid sparse data\",\n      \"changes\": \"Added checks in Mat_VarPrint to break early if sparse == NULL or sparse->ndata == 0 or sparse->nir == 0 or sparse->njc == 0.\",\n      \"relevance\": \"Introduced defensive checks for sparse metadata but did not validate sparse->data or per-array bounds; partial hardening relevant to the crash context.\"\n    },\n    {\n      \"hash\": \"b3515c6\",\n      \"message\": \"Check for valid sparse data\",\n      \"changes\": \"Extended the previous checks to also ensure sparse->data != NULL before proceeding.\",\n      \"relevance\": \"Closes a null-data path, but still does not add explicit loop/index bounds validation; highlights incremental fixes rather than addressing index-safety.\"\n    },\n    {\n      \"hash\": \"a148eec\",\n      \"message\": \"Fix illegal memory access\",\n      \"changes\": \"Added a guard when printing struct fields (checks matvar->internal->fieldnames != NULL before indexing) to avoid illegal memory access during printing.\",\n      \"relevance\": \"Shows project precedent of adding presence checks before dereference in Mat_VarPrint; suggests similar checks are appropriate for sparse-array handling.\"\n    }\n  ],\n  \"vulnerability_origin\": \"Mat_VarPrint iterates sparse matrix index/data arrays without sufficient bounds checking. Recent commits added null/zero checks for sparse metadata and data pointer but did not validate loop bounds or the contents of index arrays, allowing reads past allocated buffers produced by ReadSparse.\",\n  \"fix_hints\": \"History shows maintainers add presence/null checks (e.g., for sparse and fieldnames). Apply the same defensive pattern to array lengths and index values: validate sparse->ndata, sizes of index/jc arrays, and ensure indices from jc/ir/data are within allocated ranges before reading.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add explicit loop bounds and index validation inside Mat_VarPrint before reading sparse arrays.\",\n      \"reasoning\": \"Matches prior fixes (presence checks) and directly prevents out-of-bounds reads by clamping/aborting iterations when counts/indices are inconsistent.\",\n      \"trade_offs\": \"Small runtime overhead and stricter rejection of malformed MAT files; minimal code changes localized to Mat_VarPrint.\"\n    },\n    {\n      \"approach\": \"Enhance ReadSparse to validate and store array lengths/consistency (and possibly add sentinels), and have Mat_VarPrint rely on those validated length fields.\",\n      \"reasoning\": \"Shifting validation to the reader centralizes checks and ensures all consumers see consistent metadata, reducing duplicated checks.\",\n      \"trade_offs\": \"Larger change surface (reader code), may require updating call sites and behaviors for malformed files.\"\n    },\n    {\n      \"approach\": \"When encountering inconsistent counts/indices, fail early and report a parse error rather than attempting to print partial data.\",\n      \"reasoning\": \"Fail-fast prevents accidental exposure of memory and makes error handling explicit; consistent with other defensive changes observed in history.\",\n      \"trade_offs\": \"Loss of best-effort printing for slightly malformed files; user-visible behavior change.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "src/matio/src/mat.c",
+      "function_analyzed": "Mat_VarPrint",
+      "relevant_commits": [
+        {
+          "hash": "b621938",
+          "message": "Check for valid sparse data",
+          "changes": "Added checks in Mat_VarPrint to break early if sparse == NULL or sparse->ndata == 0 or sparse->nir == 0 or sparse->njc == 0.",
+          "relevance": "Introduced defensive checks for sparse metadata but did not validate sparse->data or per-array bounds; partial hardening relevant to the crash context."
+        },
+        {
+          "hash": "b3515c6",
+          "message": "Check for valid sparse data",
+          "changes": "Extended the previous checks to also ensure sparse->data != NULL before proceeding.",
+          "relevance": "Closes a null-data path, but still does not add explicit loop/index bounds validation; highlights incremental fixes rather than addressing index-safety."
+        },
+        {
+          "hash": "a148eec",
+          "message": "Fix illegal memory access",
+          "changes": "Added a guard when printing struct fields (checks matvar->internal->fieldnames != NULL before indexing) to avoid illegal memory access during printing.",
+          "relevance": "Shows project precedent of adding presence checks before dereference in Mat_VarPrint; suggests similar checks are appropriate for sparse-array handling."
+        }
+      ],
+      "vulnerability_origin": "Mat_VarPrint iterates sparse matrix index/data arrays without sufficient bounds checking. Recent commits added null/zero checks for sparse metadata and data pointer but did not validate loop bounds or the contents of index arrays, allowing reads past allocated buffers produced by ReadSparse.",
+      "fix_hints": "History shows maintainers add presence/null checks (e.g., for sparse and fieldnames). Apply the same defensive pattern to array lengths and index values: validate sparse->ndata, sizes of index/jc arrays, and ensure indices from jc/ir/data are within allocated ranges before reading.",
+      "fix_suggestions": [
+        {
+          "approach": "Add explicit loop bounds and index validation inside Mat_VarPrint before reading sparse arrays.",
+          "reasoning": "Matches prior fixes (presence checks) and directly prevents out-of-bounds reads by clamping/aborting iterations when counts/indices are inconsistent.",
+          "trade_offs": "Small runtime overhead and stricter rejection of malformed MAT files; minimal code changes localized to Mat_VarPrint."
+        },
+        {
+          "approach": "Enhance ReadSparse to validate and store array lengths/consistency (and possibly add sentinels), and have Mat_VarPrint rely on those validated length fields.",
+          "reasoning": "Shifting validation to the reader centralizes checks and ensures all consumers see consistent metadata, reducing duplicated checks.",
+          "trade_offs": "Larger change surface (reader code), may require updating call sites and behaviors for malformed files."
+        },
+        {
+          "approach": "When encountering inconsistent counts/indices, fail early and report a parse error rather than attempting to print partial data.",
+          "reasoning": "Fail-fast prevents accidental exposure of memory and makes error handling explicit; consistent with other defensive changes observed in history.",
+          "trade_offs": "Loss of best-effort printing for slightly malformed files; user-visible behavior change."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 15426,
+      "output_tokens": 1995
+    },
+    "timing": {
+      "start_time": 1769091939.012776,
+      "end_time": 1769092000.7686038,
+      "duration": 61.75582790374756
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nHeap-based buffer overflow in Mat_VarPrint (src/matio/src/mat.c). While printing sparse matrix variables the function can read past the end of sparse index/data arrays (memory allocated by ReadSparse in mat5.c) due to insufficient bounds checking of the loop index, leading to out-of-bounds reads. This can cause memory corrupti",
+      "total_steps": 2,
+      "total_duration": 61.75582790374756,
+      "total_input_tokens": 15426,
+      "total_output_tokens": 1995,
+      "total_cost": 0.00254085,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"Mat_VarPrint iterated sparse matrix index/data arrays using jc indices without validating they were within the allocated ir/ndata lengths, allowing an off-by-one or out-of-bounds read when sparse metadata was malformed.\",\n  \"fix_approach\": \"Added defensive bounds checks in Mat_VarPrint around the loops that iterate sparse->jc/ir/data. For each column, the code now computes start/end from jc, clamps end to the available nir and ndata, skips columns with start beyond nir, and checks j against nir/ndata before each access. This prevents reads past allocated buffers while printing sparse matrices.\",\n  \"files_modified\": [\"src/matio/src/mat.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "Mat_VarPrint iterated sparse matrix index/data arrays using jc indices without validating they were within the allocated ir/ndata lengths, allowing an off-by-one or out-of-bounds read when sparse metadata was malformed.",
+      "fix_approach": "Added defensive bounds checks in Mat_VarPrint around the loops that iterate sparse->jc/ir/data. For each column, the code now computes start/end from jc, clamps end to the available nir and ndata, skips columns with start beyond nir, and checks j against nir/ndata before each access. This prevents reads past allocated buffers while printing sparse matrices.",
+      "files_modified": [
+        "src/matio/src/mat.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 183176,
+      "output_tokens": 6591
+    },
+    "timing": {
+      "start_time": 1769092000.774103,
+      "end_time": 1769092115.813933,
+      "duration": 115.03982996940613
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nHeap-based buffer overflow in Mat_VarPrint (src/matio/src/mat.c). While printing sparse matrix variables the function can read past the end of sparse index/data arrays (memory allocated by ReadSparse in mat5.c) due to insufficient bounds checking of the loop index, leading to out-of-bounds reads. This can cause memory corrupti",
+      "total_steps": 10,
+      "total_duration": 115.03982996940613,
+      "total_input_tokens": 183176,
+      "total_output_tokens": 6591,
+      "total_cost": 0.013503999999999999,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 247418,
+    "output_tokens": 13357
+  },
+  "timing": {
+    "total_duration": 301.95080280303955
+  }
+}

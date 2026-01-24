@@ -1,0 +1,46 @@
+diff --git a/parser.c b/parser.c
+index 9bda9458..7d2e5c7f 100644
+--- a/parser.c
++++ b/parser.c
+@@ -9672,7 +9672,7 @@ xmlParseEndTag2(xmlParserCtxtPtr ctxt, const xmlStartTag *tag) {
+     }
+     SKIP(2);
+ 
+-    if (tag->prefix == NULL)
++    if (tag == NULL || tag->prefix == NULL)
+         name = xmlParseNameAndCompare(ctxt, ctxt->name);
+     else
+         name = xmlParseQNameAndCompare(ctxt, ctxt->name, tag->prefix);
+@@ -9707,11 +9707,11 @@ xmlParseEndTag2(xmlParserCtxtPtr ctxt, const xmlStartTag *tag) {
+      */
+     if ((ctxt->sax != NULL) && (ctxt->sax->endElementNs != NULL) &&
+ 	(!ctxt->disableSAX))
+-	ctxt->sax->endElementNs(ctxt->userData, ctxt->name, tag->prefix,
+-                                tag->URI);
++	ctxt->sax->endElementNs(ctxt->userData, ctxt->name, (tag?tag->prefix:NULL),
++                                (tag?tag->URI:NULL));
+ 
+     spacePop(ctxt);
+-    if (tag->nsNr != 0)
++    if (tag != NULL && tag->nsNr != 0)
+ 	nsPop(ctxt, tag->nsNr);
+ }
+ 
+@@ -9928,7 +9928,7 @@ xmlParseContent(xmlParserCtxtPtr ctxt) {
+ 
+     if ((ctxt->instate != XML_PARSER_EOF) && (ctxt->nameNr > nameNr)) {
+         const xmlChar *name = ctxt->nameTab[ctxt->nameNr - 1];
+-        int line = ctxt->pushTab[ctxt->nameNr - 1].line;
++        int line = 0; if (ctxt->pushTab != NULL && ctxt->nameNr > 0) line = ctxt->pushTab[ctxt->nameNr - 1].line;
+         xmlFatalErrMsgStrIntStr(ctxt, XML_ERR_TAG_NOT_FINISHED,
+                 "Premature end of data in tag %s line %d\n",
+ 		name, line, NULL);
+@@ -9960,7 +9960,7 @@ xmlParseElement(xmlParserCtxtPtr ctxt) {
+ 
+     if (CUR == 0) {
+         const xmlChar *name = ctxt->nameTab[ctxt->nameNr - 1];
+-        int line = ctxt->pushTab[ctxt->nameNr - 1].line;
++        int line = 0; if (ctxt->pushTab != NULL && ctxt->nameNr > 0) line = ctxt->pushTab[ctxt->nameNr - 1].line;
+         xmlFatalErrMsgStrIntStr(ctxt, XML_ERR_TAG_NOT_FINISHED,
+                 "Premature end of data in tag %s line %d\n",
+ 		name, line, NULL);

@@ -1,0 +1,170 @@
+{
+  "instance_id": "njs.ossfuzz-42523579",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [],\n  \"dataflow_summary\": \"No dataflow findings from CodeQL. CodeQL dataflow/allocation queries returned no results for the target files.\",\n  \"key_insight\": \"AddressSanitizer shows a NULL pointer dereference in njs_scope_value (src/njs/src/njs_scope.h:82) called from the bytecode interpreter (njs_vmcode_interpreter). Static CodeQL scans did not report issues, but the sanitizer stacktrace pinpoints a null read from the zero page (offset 0x18), indicating an unchecked NULL or uninitialized pointer dereference when resolving scope values.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add defensive NULL checks in njs_scope_value and njs_scope_valid_value before dereferencing pointers.\",\n      \"reasoning\": \"Directly prevents NULL dereference at the crash site. Simple and localized change that avoids reading from the zero page.\",\n      \"trade_offs\": \"Small runtime cost for extra checks; must ensure behavior on NULL (return error/throw) is consistent with VM semantics.\"\n    },\n    {\n      \"approach\": \"Ensure the interpreter (njs_vmcode_interpreter) validates scope/value pointers before calling njs_scope_* helpers (validate operands when decoding bytecode).\",\n      \"reasoning\": \"Catches invalid state earlier in execution and prevents calling helpers with bad pointers, keeping helper code simpler and reducing duplicated checks.\",\n      \"trade_offs\": \"Requires auditing many call sites and bytecode paths; larger refactor and risk of missing some paths if not comprehensive.\"\n    },\n    {\n      \"approach\": \"Harden object/scope initialization and lifetime: ensure scopes and value entries are always initialized to safe defaults and never left NULL when reachable by bytecode (add constructor guarantees and invariants).\",\n      \"reasoning\": \"Addresses root cause by preventing invalid state rather than reacting to it; reduces need for pervasive checks and avoids future similar bugs.\",\n      \"trade_offs\": \"Bigger design change, more code churn and review; may require refactoring allocation/GC paths and extensive testing to preserve semantics.\n\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [],\n  \"dataflow_summary\": \"No dataflow findings from CodeQL. CodeQL dataflow/allocation queries returned no results for the target files.\",\n  \"key_insight\": \"AddressSanitizer shows a NULL pointer dereference in njs_scope_value (src/njs/src/njs_scope.h:82) called from the bytecode interpreter (njs_vmcode_interpreter). Static CodeQL scans did not report issues, but the sanitizer stacktrace pinpoints a null read from the zero page (offset 0x18), indicating an unchecked NULL or uninitialized pointer dereference when resolving scope values.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add defensive NULL checks in njs_scope_value and njs_scope_valid_value before dereferencing pointers.\",\n      \"reasoning\": \"Directly prevents NULL dereference at the crash site. Simple and localized change that avoids reading from the zero page.\",\n      \"trade_offs\": \"Small runtime cost for extra checks; must ensure behavior on NULL (return error/throw) is consistent with VM semantics.\"\n    },\n    {\n      \"approach\": \"Ensure the interpreter (njs_vmcode_interpreter) validates scope/value pointers before calling njs_scope_* helpers (validate operands when decoding bytecode).\",\n      \"reasoning\": \"Catches invalid state earlier in execution and prevents calling helpers with bad pointers, keeping helper code simpler and reducing duplicated checks.\",\n      \"trade_offs\": \"Requires auditing many call sites and bytecode paths; larger refactor and risk of missing some paths if not comprehensive.\"\n    },\n    {\n      \"approach\": \"Harden object/scope initialization and lifetime: ensure scopes and value entries are always initialized to safe defaults and never left NULL when reachable by bytecode (add constructor guarantees and invariants).\",\n      \"reasoning\": \"Addresses root cause by preventing invalid state rather than reacting to it; reduces need for pervasive checks and avoids future similar bugs.\",\n      \"trade_offs\": \"Bigger design change, more code churn and review; may require refactoring allocation/GC paths and extensive testing to preserve semantics.\n\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 19570,
+      "output_tokens": 1856
+    },
+    "timing": {
+      "start_time": 1769123625.4330504,
+      "end_time": 1769123681.2332172,
+      "duration": 55.800166845321655
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA null pointer dereference in njs_scope_value (src/njs/src/njs_scope.h), reachable from the bytecode interpreter (njs_vmcode_interpreter in njs_vmcode.c), can read from the zero page (e.g. offset 0x18) and cause a segmentation fault. Crafted input can trigger this during script execution, resulting in a process crash (denial-of-se",
+      "total_steps": 3,
+      "total_duration": 55.800166845321655,
+      "total_input_tokens": 19570,
+      "total_output_tokens": 1856,
+      "total_cost": 0.0030350499999999996,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x18\",\n    \"type\": \"null pointer dereference (SIGSEGV read from zero page)\",\n    \"location\": \"src/njs/src/njs_scope.h:82 (njs_scope_value)\"\n  },\n  \"backtrace\": [\n    \"njs_scope_value (src/njs/src/njs_scope.h:82)\",\n    \"njs_scope_valid_value (src/njs/src/njs_scope.h:92)\",\n    \"njs_vmcode_interpreter (src/njs/src/njs_vmcode.c:939)\",\n    \"njs_vm_start (src/njs/src/njs_vm.c:561)\",\n    \"njs_process_script (src/njs/external/njs_shell.c:999)\",\n    \"main (src/njs/external/njs_shell.c:367)\"\n  ],\n  \"memory_state\": \"Attempted READ at address 0x18 (zero page). Register state shows rax=0x18 at crash; this indicates a NULL or very small pointer was dereferenced and an access at offset 0x18 was attempted. No Valgrind run (not installed), but AddressSanitizer output and GDB confirm the invalid read from the zero page.\",\n  \"root_cause_hint\": \"Dynamic evidence (ASan + GDB) indicates a NULL pointer (or pointer near NULL) is passed into njs_scope_value / njs_scope_valid_value and then dereferenced, causing a read at offset 0x18. The crash occurs while the bytecode interpreter (njs_vmcode_interpreter) executes, so a particular bytecode path can lead to an uninitialized/NULL scope or value being used.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add defensive null checks in njs_scope_value and njs_scope_valid_value before dereferencing any pointer fields.\",\n      \"reasoning\": \"This is the simplest and most local fix: if the code validates the pointer and returns an error or a safe default when NULL, a crash will be prevented immediately.\",\n      \"trade_offs\": \"Adds small runtime overhead and requires careful error propagation where callers expect a valid value. It masks the symptom rather than fixing the root initialization bug, but is low-risk and quick to deploy.\"\n    },\n    {\n      \"approach\": \"Ensure proper initialization/assignment of scope/value structures at allocation sites and update the bytecode generation/VM paths so they never pass NULL into njs_scope_value.\",\n      \"reasoning\": \"Fixing the root cause prevents invalid pointers from being created. If the interpreter or compiler path that produces the problematic bytecode is corrected, the checks become unnecessary in hot paths and overall correctness improves.\",\n      \"trade_offs\": \"Requires thorough audit of allocation and initialization codepaths and may be more invasive. Longer development and testing time but yields a cleaner fix.\"\n    },\n    {\n      \"approach\": \"Introduce explicit validation in the bytecode interpreter before using scope-related operands: validate operand types/values and handle error paths instead of dereferencing blindly.\",\n      \"reasoning\": \"Catching invalid operands early in the interpreter keeps invariants clear and prevents similar issues in other scope/value operations. It centralizes checks in the VM dispatcher.\",\n      \"trade_offs\": \"Performance cost for additional checks in the interpreter hot loop; careful benchmarking required. Also requires consistent error-handling semantics across interpreter instructions.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb"
+      ],
+      "crash_info": {
+        "address": "0x18",
+        "type": "null pointer dereference (SIGSEGV read from zero page)",
+        "location": "src/njs/src/njs_scope.h:82 (njs_scope_value)"
+      },
+      "backtrace": [
+        "njs_scope_value (src/njs/src/njs_scope.h:82)",
+        "njs_scope_valid_value (src/njs/src/njs_scope.h:92)",
+        "njs_vmcode_interpreter (src/njs/src/njs_vmcode.c:939)",
+        "njs_vm_start (src/njs/src/njs_vm.c:561)",
+        "njs_process_script (src/njs/external/njs_shell.c:999)",
+        "main (src/njs/external/njs_shell.c:367)"
+      ],
+      "memory_state": "Attempted READ at address 0x18 (zero page). Register state shows rax=0x18 at crash; this indicates a NULL or very small pointer was dereferenced and an access at offset 0x18 was attempted. No Valgrind run (not installed), but AddressSanitizer output and GDB confirm the invalid read from the zero page.",
+      "root_cause_hint": "Dynamic evidence (ASan + GDB) indicates a NULL pointer (or pointer near NULL) is passed into njs_scope_value / njs_scope_valid_value and then dereferenced, causing a read at offset 0x18. The crash occurs while the bytecode interpreter (njs_vmcode_interpreter) executes, so a particular bytecode path can lead to an uninitialized/NULL scope or value being used.",
+      "fix_suggestions": [
+        {
+          "approach": "Add defensive null checks in njs_scope_value and njs_scope_valid_value before dereferencing any pointer fields.",
+          "reasoning": "This is the simplest and most local fix: if the code validates the pointer and returns an error or a safe default when NULL, a crash will be prevented immediately.",
+          "trade_offs": "Adds small runtime overhead and requires careful error propagation where callers expect a valid value. It masks the symptom rather than fixing the root initialization bug, but is low-risk and quick to deploy."
+        },
+        {
+          "approach": "Ensure proper initialization/assignment of scope/value structures at allocation sites and update the bytecode generation/VM paths so they never pass NULL into njs_scope_value.",
+          "reasoning": "Fixing the root cause prevents invalid pointers from being created. If the interpreter or compiler path that produces the problematic bytecode is corrected, the checks become unnecessary in hot paths and overall correctness improves.",
+          "trade_offs": "Requires thorough audit of allocation and initialization codepaths and may be more invasive. Longer development and testing time but yields a cleaner fix."
+        },
+        {
+          "approach": "Introduce explicit validation in the bytecode interpreter before using scope-related operands: validate operand types/values and handle error paths instead of dereferencing blindly.",
+          "reasoning": "Catching invalid operands early in the interpreter keeps invariants clear and prevents similar issues in other scope/value operations. It centralizes checks in the VM dispatcher.",
+          "trade_offs": "Performance cost for additional checks in the interpreter hot loop; careful benchmarking required. Also requires consistent error-handling semantics across interpreter instructions."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 23570,
+      "output_tokens": 3651
+    },
+    "timing": {
+      "start_time": 1769123681.2365074,
+      "end_time": 1769123715.553558,
+      "duration": 34.31705069541931
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA null pointer dereference in njs_scope_value (src/njs/src/njs_scope.h), reachable from the bytecode interpreter (njs_vmcode_interpreter in njs_vmcode.c), can read from the zero page (e.g. offset 0x18) and cause a segmentation fault. Crafted input can trigger this during script execution, resulting in a process crash (denial-of-se",
+      "total_steps": 3,
+      "total_duration": 34.31705069541931,
+      "total_input_tokens": 23570,
+      "total_output_tokens": 3651,
+      "total_cost": 0.004365249999999999,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"src/njs/src/njs_scope.h\",\n  \"function_analyzed\": \"njs_scope_value\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"4c8487f\",\n      \"message\": \"Leaving consistency checks as asserts for njs_scope_index()\",\n      \"changes\": \"Replaced runtime validation of 'type' and 'scope' with njs_assert; kept only index bound check at runtime.\",\n      \"relevance\": \"Removed runtime checks that would prevent invalid 'type' values from reaching njs_scope_value, enabling out-of-bounds/null dereference at the sink.\"\n    },\n    {\n      \"hash\": \"993f197\",\n      \"message\": \"Masks definition corrected and made regularized\",\n      \"changes\": \"Reworked NJS_SCOPE_* offsets/sizes/masks (introduced explicit VAR/TYPE/VALUE sizes and masks).\",\n      \"relevance\": \"Changed bit packing for scope indices; incorrect mask/shift logic in history can lead to wrong type/value extraction if assumptions are inconsistent.\"\n    },\n    {\n      \"hash\": \"27a4a52\",\n      \"message\": \"Introduced let implementation (scopes refactoring)\",\n      \"changes\": \"Major refactor: added var-type to scope index encoding and updated index packing/unpacking logic across the header.\",\n      \"relevance\": \"Introduced bit-packed index format complexity (value/type/var) that later commits adjusted; the packing/unpacking logic is central to the invalid index leading to the crash.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The crash likely stems from the scopes refactor that introduced bit-packed indices (Apr 2021) combined with a subsequent change (May 2022) that converted runtime validation of index \"type\"/\"scope\" into assertions. Together with later mask/offset adjustments, this allowed crafted/invalid indices to reach njs_scope_value without runtime checks, causing vm->levels[type] to be NULL and indexing into it (read from zero page).\",\n  \"fix_hints\": \"Reinstate runtime validation for extracted 'type' and 'value' at the access site or ensure indexes are sanitized earlier. Ensure vm->levels[type] is non-NULL and index_value is within allocated range before indexing. Keep bit-packing logic consistent and add defensive checks at the sink.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add defensive checks inside njs_scope_value\",\n      \"reasoning\": \"Fixing the sink is minimal, reliable and prevents dereference even if upstream index construction is flawed or asserts are disabled. Check that type < NJS_LEVEL_MAX, vm->levels[type] != NULL and njs_scope_index_value(index) is within the bounds for that level; return NULL or raise a VM error instead of dereferencing.\",\n      \"trade_offs\": \"Small runtime overhead on scope accesses; callers must handle NULL/error returns. Does not fix the root cause of malformed indexes but prevents crash (defense in depth).\"\n    },\n    {\n      \"approach\": \"Restore runtime validation in njs_scope_index (do not rely solely on asserts)\",\n      \"reasoning\": \"Catching invalid or out-of-range 'type' and 'scope' at their creation prevents malformed indexes from being used downstream and preserves original safety checks present before the refactor.\",\n      \"trade_offs\": \"May require changes in many call sites; might hide latent bugs by returning error codes instead of asserting in debug builds. Slight performance cost where index creation is frequent.\"\n    },\n    {\n      \"approach\": \"Normalize/verify bit masks/offsets and add unit tests that fuzz/validate index packing/unpacking\",\n      \"reasoning\": \"Historical edits to masks/offsets caused complexity; adding regression tests and a single authoritative implementation reduces chances of incorrect index decoding producing invalid types/values.\",\n      \"trade_offs\": \"Does not immediately stop current crashes until checks are added; requires test additions and CI coverage.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"src/njs/src/njs_scope.h\",\n  \"function_analyzed\": \"njs_scope_value\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"4c8487f\",\n      \"message\": \"Leaving consistency checks as asserts for njs_scope_index()\",\n      \"changes\": \"Replaced runtime validation of 'type' and 'scope' with njs_assert; kept only index bound check at runtime.\",\n      \"relevance\": \"Removed runtime checks that would prevent invalid 'type' values from reaching njs_scope_value, enabling out-of-bounds/null dereference at the sink.\"\n    },\n    {\n      \"hash\": \"993f197\",\n      \"message\": \"Masks definition corrected and made regularized\",\n      \"changes\": \"Reworked NJS_SCOPE_* offsets/sizes/masks (introduced explicit VAR/TYPE/VALUE sizes and masks).\",\n      \"relevance\": \"Changed bit packing for scope indices; incorrect mask/shift logic in history can lead to wrong type/value extraction if assumptions are inconsistent.\"\n    },\n    {\n      \"hash\": \"27a4a52\",\n      \"message\": \"Introduced let implementation (scopes refactoring)\",\n      \"changes\": \"Major refactor: added var-type to scope index encoding and updated index packing/unpacking logic across the header.\",\n      \"relevance\": \"Introduced bit-packed index format complexity (value/type/var) that later commits adjusted; the packing/unpacking logic is central to the invalid index leading to the crash.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The crash likely stems from the scopes refactor that introduced bit-packed indices (Apr 2021) combined with a subsequent change (May 2022) that converted runtime validation of index \"type\"/\"scope\" into assertions. Together with later mask/offset adjustments, this allowed crafted/invalid indices to reach njs_scope_value without runtime checks, causing vm->levels[type] to be NULL and indexing into it (read from zero page).\",\n  \"fix_hints\": \"Reinstate runtime validation for extracted 'type' and 'value' at the access site or ensure indexes are sanitized earlier. Ensure vm->levels[type] is non-NULL and index_value is within allocated range before indexing. Keep bit-packing logic consistent and add defensive checks at the sink.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add defensive checks inside njs_scope_value\",\n      \"reasoning\": \"Fixing the sink is minimal, reliable and prevents dereference even if upstream index construction is flawed or asserts are disabled. Check that type < NJS_LEVEL_MAX, vm->levels[type] != NULL and njs_scope_index_value(index) is within the bounds for that level; return NULL or raise a VM error instead of dereferencing.\",\n      \"trade_offs\": \"Small runtime overhead on scope accesses; callers must handle NULL/error returns. Does not fix the root cause of malformed indexes but prevents crash (defense in depth).\"\n    },\n    {\n      \"approach\": \"Restore runtime validation in njs_scope_index (do not rely solely on asserts)\",\n      \"reasoning\": \"Catching invalid or out-of-range 'type' and 'scope' at their creation prevents malformed indexes from being used downstream and preserves original safety checks present before the refactor.\",\n      \"trade_offs\": \"May require changes in many call sites; might hide latent bugs by returning error codes instead of asserting in debug builds. Slight performance cost where index creation is frequent.\"\n    },\n    {\n      \"approach\": \"Normalize/verify bit masks/offsets and add unit tests that fuzz/validate index packing/unpacking\",\n      \"reasoning\": \"Historical edits to masks/offsets caused complexity; adding regression tests and a single authoritative implementation reduces chances of incorrect index decoding producing invalid types/values.\",\n      \"trade_offs\": \"Does not immediately stop current crashes until checks are added; requires test additions and CI coverage.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 85724,
+      "output_tokens": 5758
+    },
+    "timing": {
+      "start_time": 1769123715.5563614,
+      "end_time": 1769123770.9029925,
+      "duration": 55.34663105010986
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA null pointer dereference in njs_scope_value (src/njs/src/njs_scope.h), reachable from the bytecode interpreter (njs_vmcode_interpreter in njs_vmcode.c), can read from the zero page (e.g. offset 0x18) and cause a segmentation fault. Crafted input can trigger this during script execution, resulting in a process crash (denial-of-se",
+      "total_steps": 8,
+      "total_duration": 55.34663105010986,
+      "total_input_tokens": 85724,
+      "total_output_tokens": 5758,
+      "total_cost": 0.0097775,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"A malformed/invalid scope index could select a vm->levels[level] that was NULL; the code dereferenced vm->levels[type][index] without validating that the level pointer existed (or that the type was in range), causing a NULL pointer read (zero-page access). Assertions in index construction removed runtime validation, allowing crafted bytecode/state to reach the sink.\",\n  \"fix_approach\": \"Added defensive validation and lazy allocation at the sink. njs_scope_value() and njs_scope_value_set() now: 1) extract the level (type) and value index safely; 2) check that type is within NJS_LEVEL_MAX; 3) if vm->levels[type] is NULL, allocate level storage with njs_scope_make() sized to hold the requested index; 4) avoid dereferencing NULL and return or drop sets when allocation fails. This is a minimal, localized fix that prevents NULL dereferences while preserving existing semantics (returns undefined when necessary).\",\n  \"files_modified\": [\"src/njs/src/njs_scope.h\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "A malformed/invalid scope index could select a vm->levels[level] that was NULL; the code dereferenced vm->levels[type][index] without validating that the level pointer existed (or that the type was in range), causing a NULL pointer read (zero-page access). Assertions in index construction removed runtime validation, allowing crafted bytecode/state to reach the sink.",
+      "fix_approach": "Added defensive validation and lazy allocation at the sink. njs_scope_value() and njs_scope_value_set() now: 1) extract the level (type) and value index safely; 2) check that type is within NJS_LEVEL_MAX; 3) if vm->levels[type] is NULL, allocate level storage with njs_scope_make() sized to hold the requested index; 4) avoid dereferencing NULL and return or drop sets when allocation fails. This is a minimal, localized fix that prevents NULL dereferences while preserving existing semantics (returns undefined when necessary).",
+      "files_modified": [
+        "src/njs/src/njs_scope.h"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 557364,
+      "output_tokens": 12179
+    },
+    "timing": {
+      "start_time": 1769123770.90852,
+      "end_time": 1769123916.0713694,
+      "duration": 145.16284942626953
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA null pointer dereference in njs_scope_value (src/njs/src/njs_scope.h), reachable from the bytecode interpreter (njs_vmcode_interpreter in njs_vmcode.c), can read from the zero page (e.g. offset 0x18) and cause a segmentation fault. Crafted input can trigger this during script execution, resulting in a process crash (denial-of-se",
+      "total_steps": 21,
+      "total_duration": 145.16284942626953,
+      "total_input_tokens": 557364,
+      "total_output_tokens": 12179,
+      "total_cost": 0.026539099999999996,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 686228,
+    "output_tokens": 23444
+  },
+  "timing": {
+    "total_duration": 290.65018701553345
+  }
+}

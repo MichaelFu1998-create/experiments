@@ -1,0 +1,17 @@
+diff --git a/mrbgems/mruby-bigint/core/bigint.c b/mrbgems/mruby-bigint/core/bigint.c
+index b7892ef21..690ca1b29 100644
+--- a/mrbgems/mruby-bigint/core/bigint.c
++++ b/mrbgems/mruby-bigint/core/bigint.c
+@@ -652,6 +652,12 @@ mpz_init_set_str(mrb_state *mrb, mpz_t *x, const char *s, mrb_int len, mrb_int b
+   mpz_init_set_int(mrb,&m,1);
+   mpz_init(mrb,&t);
+   zero(x);
++  if (s == NULL || len <= 0) {
++    mpz_clear(mrb,&m);
++    mpz_clear(mrb,&t);
++    mpz_clear(mrb,x);
++    return (-1);
++  }
+   if (*s == '-') {
+     sn = -1; s++;
+   }

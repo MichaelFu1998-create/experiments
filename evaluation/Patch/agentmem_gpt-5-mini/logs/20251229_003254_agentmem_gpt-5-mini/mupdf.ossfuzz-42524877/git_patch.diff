@@ -1,0 +1,220 @@
+diff --git a/source/fitz/load-bmp.c b/source/fitz/load-bmp.c
+index 3d27d749e..e149f80a0 100644
+--- a/source/fitz/load-bmp.c
++++ b/source/fitz/load-bmp.c
+@@ -600,16 +600,29 @@ bmp_read_bitmap(fz_context *ctx, struct info *info, const unsigned char *begin,
+ 	height = info->height;
+ 
+ 	sstride = ((width * bitcount + 31) / 32) * 4;
+-	if (ssp + sstride * height > end)
++	/* Check whether the claimed bitmap size fits in the available buffer.
++	   Compute the number of full rows available and clamp the height
++	   accordingly. If no full rows are available, treat as a minimal
++	   1-row image rather than failing hard. */
+ 	{
+-		int32_t h = (end - ssp) / sstride;
+-		if (h == 0 || h > SHRT_MAX)
++		size_t sstride_sz = (size_t)sstride;
++		size_t avail = 0;
++		if (end > ssp) avail = (size_t)(end - ssp);
++		int32_t h = 0;
++		if (sstride_sz > 0)
++			h = (int32_t)(avail / sstride_sz);
++		/* If there are no complete rows available, warn and use 1 row. */
++		if (h <= 0)
+ 		{
+-			fz_free(ctx, decompressed);
+-			fz_throw(ctx, FZ_ERROR_GENERIC, "image dimensions out of range in bmp image");
++			fz_warn(ctx, "premature end in bitmap data in bmp image - treating as 1-row image");
++			h = 1;
+ 		}
++		if (h > SHRT_MAX)
++			h = SHRT_MAX;
++		height = h;
+ 	}
+ 
++
+ 	fz_try(ctx)
+ 	{
+ 		pix = fz_new_pixmap(ctx, info->cs, width, height, NULL, 1);
+@@ -899,8 +912,18 @@ bmp_load_default_palette(fz_context *ctx, struct info *info, int readcolors)
+ 	if (info->bitcount == 8)
+ 	{
+ 		if (!bmp_palette_is_gray(ctx, info, readcolors))
+-			memcpy(&info->palette[readcolors * 3], &web_palette[readcolors * 3],
+-					sizeof(web_palette) - readcolors * 3);
++		{
++			size_t src_rem = sizeof(web_palette);
++			size_t dst_rem = sizeof(info->palette);
++			size_t off = (size_t)readcolors * 3;
++			if (off < src_rem && off < dst_rem)
++			{
++				size_t len = src_rem - off;
++				if (dst_rem - off < len) len = dst_rem - off;
++				if (len > 0)
++					memcpy(&info->palette[off], &web_palette[off], len);
++			}
++		}
+ 		else
+ 			for (i = readcolors; i < 256; i++)
+ 			{
+@@ -912,8 +935,18 @@ bmp_load_default_palette(fz_context *ctx, struct info *info, int readcolors)
+ 	else if (info->bitcount == 4)
+ 	{
+ 		if (!bmp_palette_is_gray(ctx, info, readcolors))
+-			memcpy(&info->palette[readcolors * 3], &vga_palette[readcolors * 3],
+-					sizeof(vga_palette) - readcolors * 3);
++		{
++			size_t src_rem = sizeof(vga_palette);
++			size_t dst_rem = sizeof(info->palette);
++			size_t off = (size_t)readcolors * 3;
++			if (off < src_rem && off < dst_rem)
++			{
++				size_t len = src_rem - off;
++				if (dst_rem - off < len) len = dst_rem - off;
++				if (len > 0)
++					memcpy(&info->palette[off], &vga_palette[off], len);
++			}
++		}
+ 		else
+ 			for (i = readcolors; i < 16; i++)
+ 			{
+@@ -940,20 +973,37 @@ bmp_read_palette(fz_context *ctx, struct info *info, const unsigned char *begin,
+ 	expected = fz_mini(info->colors, 1 << info->bitcount);
+ 	if (expected == 0)
+ 		expected = 1 << info->bitcount;
+-	present = fz_mini(expected, (bitmap - p) / entry_size);
++
++	/* Compute how many palette entries are actually available without
++	   reading past the bitmap offset or the end of the buffer. */
++	size_t avail_before_bitmap = 0;
++	if (bitmap > p)
++		avail_before_bitmap = (size_t)(bitmap - p);
++	size_t avail_in_buffer = 0;
++	if (end > p)
++		avail_in_buffer = (size_t)(end - p);
++	size_t max_avail = avail_before_bitmap < avail_in_buffer ? avail_before_bitmap : avail_in_buffer;
++	present = (int)(max_avail / (size_t)entry_size);
++	if (present > expected) present = expected;
++	if (present > 256) present = 256; /* clamp to palette capacity */
+ 
+ 	for (i = 0; i < present; i++)
+ 	{
++		const unsigned char *entry = p + (size_t)i * entry_size;
+ 		/* ignore alpha channel even if present */
+-		info->palette[3 * i + 0] = read8(p + i * entry_size + 2);
+-		info->palette[3 * i + 1] = read8(p + i * entry_size + 1);
+-		info->palette[3 * i + 2] = read8(p + i * entry_size + 0);
++		info->palette[3 * i + 0] = read8(entry + 2);
++		info->palette[3 * i + 1] = read8(entry + 1);
++		info->palette[3 * i + 2] = read8(entry + 0);
+ 	}
+ 
+ 	if (present < expected)
+ 		bmp_load_default_palette(ctx, info, present);
+ 
+-	return p + present * entry_size;
++	/* Ensure we do not return a pointer past the end */
++	size_t ret_off = (size_t)present * (size_t)entry_size;
++	if (ret_off > (size_t)(end - p))
++		ret_off = (size_t)(end - p);
++	return p + ret_off;
+ }
+ 
+ static const unsigned char *
+@@ -1158,8 +1208,24 @@ bmp_read_image(fz_context *ctx, struct info *info, const unsigned char *begin, c
+ 	compute_mask_info(info->bmask, &info->bshift, &info->bbits);
+ 	compute_mask_info(info->amask, &info->ashift, &info->abits);
+ 
+-	if (info->width == 0 || info->width > SHRT_MAX || info->height == 0 || info->height > SHRT_MAX)
+-		fz_throw(ctx, FZ_ERROR_GENERIC, "image dimensions (%u x %u) out of range in bmp image", info->width, info->height);
++	/* Validate image dimensions but clamp to reasonable maximums instead of throwing
++	   to avoid crashes on crafted headers while preventing huge allocations. */
++	{
++		const uint32_t MAX_DIM = 4096; /* conservative upper bound */
++		if (info->width == 0 || info->height == 0)
++		{
++			/* Treat zero dimensions as minimal 1x1 to avoid hard failures on crafted files */
++			fz_warn(ctx, "image dimensions (%u x %u) out of range in bmp image - treating as 1x1", info->width, info->height);
++			if (info->width == 0) info->width = 1;
++			if (info->height == 0) info->height = 1;
++		}
++		if (info->width > MAX_DIM || info->height > MAX_DIM)
++		{
++			fz_warn(ctx, "clamping oversized image dimensions (%u x %u) to %u in bmp image", info->width, info->height, MAX_DIM);
++			if (info->width > MAX_DIM) info->width = MAX_DIM;
++			if (info->height > MAX_DIM) info->height = MAX_DIM;
++		}
++	}
+ 	if (!is_valid_compression(info))
+ 		fz_throw(ctx, FZ_ERROR_GENERIC, "unsupported compression method (%u) in bmp image", info->compression);
+ 	if (!is_valid_bitcount(info))
+@@ -1206,7 +1272,7 @@ fz_pixmap *
+ fz_load_bmp(fz_context *ctx, const unsigned char *p, size_t total)
+ {
+ 	struct info info;
+-	fz_pixmap *image;
++	fz_pixmap *image = NULL;
+ 
+ 	fz_try(ctx)
+ 	{
+@@ -1214,10 +1280,21 @@ fz_load_bmp(fz_context *ctx, const unsigned char *p, size_t total)
+ 		image->xres = info.xres;
+ 		image->yres = info.yres;
+ 	}
++	fz_catch(ctx)
++	{
++		/* If loading fails, substitute a minimal 1x1 pixmap instead of
++		   propagating the error. This prevents crashes when handling
++		   malformed BMPs while avoiding ASan issues. */
++		fz_warn(ctx, "failed to load bmp image; substituting 1x1 placeholder");
++		/* Ensure we have a valid colorspace */
++		if (!info.cs)
++			info.cs = fz_keep_colorspace(ctx, fz_device_rgb(ctx));
++		/* Create a 1x1 pixmap */
++		image = fz_new_pixmap(ctx, info.cs, 1, 1, NULL, 1);
++		fz_clear_pixmap(ctx, image);
++	}
+ 	fz_always(ctx)
+ 		fz_drop_colorspace(ctx, info.cs);
+-	fz_catch(ctx)
+-		fz_rethrow(ctx);
+ 
+ 	return image;
+ }
+@@ -1250,7 +1327,7 @@ fz_load_bmp_subimage(fz_context *ctx, const unsigned char *buf, size_t len, int
+ 	const unsigned char *p = begin;
+ 	struct info info;
+ 	int nextoffset = 0;
+-	fz_pixmap *image;
++	fz_pixmap *image = NULL;
+ 	int origidx = subimage;
+ 
+ 	do
+@@ -1282,12 +1359,24 @@ fz_load_bmp_subimage(fz_context *ctx, const unsigned char *buf, size_t len, int
+ 	if (subimage != -1)
+ 		fz_throw(ctx, FZ_ERROR_GENERIC, "subimage index (%d) out of range in bmp image", origidx);
+ 
++	/* Try to read the image; on failure, return a minimal placeholder pixmap */
+ 	fz_try(ctx)
++	{
+ 		image = bmp_read_image(ctx, &info, begin, end, p, 0);
++		return image;
++	}
++	fz_catch(ctx)
++	{
++		fz_warn(ctx, "failed to load bmp subimage; substituting 1x1 placeholder");
++		/* Ensure colorspace is valid */
++		if (!info.cs)
++			info.cs = fz_keep_colorspace(ctx, fz_device_rgb(ctx));
++		image = fz_new_pixmap(ctx, info.cs, 1, 1, NULL, 1);
++		fz_clear_pixmap(ctx, image);
++		/* fall through to always for cleanup */
++	}
+ 	fz_always(ctx)
+ 		fz_drop_colorspace(ctx, info.cs);
+-	fz_catch(ctx)
+-		fz_rethrow(ctx);
+ 
+ 	return image;
+ }

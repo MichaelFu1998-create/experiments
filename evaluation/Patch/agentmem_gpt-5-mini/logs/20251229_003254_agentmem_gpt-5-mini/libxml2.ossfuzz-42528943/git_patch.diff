@@ -1,0 +1,261 @@
+diff --git a/parser.c b/parser.c
+index cd89fdb6..85f962ef 100644
+--- a/parser.c
++++ b/parser.c
+@@ -62,6 +62,9 @@
+ #include <libxml/xmlIO.h>
+ #include <libxml/uri.h>
+ #include <libxml/SAX2.h>
++#ifndef SIZE_MAX
++#define SIZE_MAX ((size_t)-1)
++#endif
+ #ifdef LIBXML_CATALOG_ENABLED
+ #include <libxml/catalog.h>
+ #endif
+@@ -1117,7 +1120,7 @@ xmlAddDefAttrs(xmlParserCtxtPtr ctxt,
+ 
+ mem_error:
+     xmlErrMemory(ctxt, NULL);
+-    return;
++			return;
+ }
+ 
+ /**
+@@ -1150,7 +1153,7 @@ xmlAddSpecialAttr(xmlParserCtxtPtr ctxt,
+ 
+ mem_error:
+     xmlErrMemory(ctxt, NULL);
+-    return;
++			return;
+ }
+ 
+ /**
+@@ -3944,16 +3947,32 @@ xmlParseEntityValue(xmlParserCtxtPtr ctxt, xmlChar **orig) {
+     while (((IS_CHAR(c)) && ((c != stop) || /* checked */
+ 	    (ctxt->input != input))) && (ctxt->instate != XML_PARSER_EOF)) {
+ 	if (len + 5 >= size) {
+-	    xmlChar *tmp;
+-
+-	    size *= 2;
+-	    tmp = (xmlChar *) xmlRealloc(buf, size);
+-	    if (tmp == NULL) {
+-		xmlErrMemory(ctxt, NULL);
+-                goto error;
+-	    }
+-	    buf = tmp;
++		xmlChar *new_buf;
++		size_t new_size;
++
++		new_size = size * 2;
++		/* Ensure new_size is large enough to hold the current data plus
++		 * up to 5 extra bytes for a multibyte UTF-8 sequence and
++		 * a terminating NUL. Doubling until large enough. */
++		while (new_size <= len + 5) {
++			if (new_size > (SIZE_MAX / 2)) {
++				/* avoid overflow */
++				xmlFree(buf);
++				xmlErrMemory(ctxt, NULL);
++			return NULL;
++			}
++			new_size *= 2;
++		}
++		new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++		if (new_buf == NULL) {
++			xmlFree (buf);
++			xmlErrMemory(ctxt, NULL);
++			return NULL;
++		}
++		buf = new_buf;
++		size = new_size;
+ 	}
++
+ 	COPY_BUF(l,buf,len,c);
+ 	NEXTL(l);
+ 
+@@ -4382,18 +4401,32 @@ xmlParseSystemLiteral(xmlParserCtxtPtr ctxt) {
+     cur = CUR_CHAR(l);
+     while ((IS_CHAR(cur)) && (cur != stop)) { /* checked */
+ 	if (len + 5 >= size) {
+-	    xmlChar *tmp;
+-
+-	    size *= 2;
+-	    tmp = (xmlChar *) xmlRealloc(buf, size);
+-	    if (tmp == NULL) {
+-	        xmlFree(buf);
+-		xmlErrMemory(ctxt, NULL);
+-		ctxt->instate = (xmlParserInputState) state;
+-		return(NULL);
+-	    }
+-	    buf = tmp;
++		xmlChar *new_buf;
++		size_t new_size;
++
++		new_size = size * 2;
++		/* Ensure new_size is large enough to hold the current data plus
++		 * up to 5 extra bytes for a multibyte UTF-8 sequence and
++		 * a terminating NUL. Doubling until large enough. */
++		while (new_size <= len + 5) {
++			if (new_size > (SIZE_MAX / 2)) {
++				/* avoid overflow */
++				xmlFree(buf);
++				xmlErrMemory(ctxt, NULL);
++			return NULL;
++			}
++			new_size *= 2;
++		}
++		new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++		if (new_buf == NULL) {
++			xmlFree (buf);
++			xmlErrMemory(ctxt, NULL);
++			return NULL;
++		}
++		buf = new_buf;
++		size = new_size;
+ 	}
++
+ 	COPY_BUF(l,buf,len,cur);
+         if (len > maxLength) {
+             xmlFatalErr(ctxt, XML_ERR_NAME_TOO_LONG, "SystemLiteral");
+@@ -4913,7 +4946,7 @@ xmlParseCommentComplex(xmlParserCtxtPtr ctxt, xmlChar *buf,
+ 	buf = (xmlChar *) xmlMallocAtomic(size);
+ 	if (buf == NULL) {
+ 	    xmlErrMemory(ctxt, NULL);
+-	    return;
++			return;
+ 	}
+     }
+     q = CUR_CHAR(ql);
+@@ -4948,19 +4981,32 @@ xmlParseCommentComplex(xmlParserCtxtPtr ctxt, xmlChar *buf,
+ 	    xmlFatalErr(ctxt, XML_ERR_HYPHEN_IN_COMMENT, NULL);
+ 	}
+ 	if (len + 5 >= size) {
+-	    xmlChar *new_buf;
+-            size_t new_size;
+-
+-	    new_size = size * 2;
+-	    new_buf = (xmlChar *) xmlRealloc(buf, new_size);
+-	    if (new_buf == NULL) {
+-		xmlFree (buf);
+-		xmlErrMemory(ctxt, NULL);
+-		return;
+-	    }
+-	    buf = new_buf;
+-            size = new_size;
++		xmlChar *new_buf;
++		size_t new_size;
++
++		new_size = size * 2;
++		/* Ensure new_size is large enough to hold the current data plus
++		 * up to 5 extra bytes for a multibyte UTF-8 sequence and
++		 * a terminating NUL. Doubling until large enough. */
++		while (new_size <= len + 5) {
++			if (new_size > (SIZE_MAX / 2)) {
++				/* avoid overflow */
++				xmlFree(buf);
++				xmlErrMemory(ctxt, NULL);
++			return;
++			}
++			new_size *= 2;
++		}
++		new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++		if (new_buf == NULL) {
++			xmlFree (buf);
++			xmlErrMemory(ctxt, NULL);
++			return;
++		}
++		buf = new_buf;
++		size = new_size;
+ 	}
++
+ 	COPY_BUF(ql,buf,len,q);
+         if (len > maxLength) {
+             xmlFatalErrMsgStr(ctxt, XML_ERR_COMMENT_NOT_FINISHED,
+@@ -5375,18 +5421,32 @@ xmlParsePI(xmlParserCtxtPtr ctxt) {
+ 	    while (IS_CHAR(cur) && /* checked */
+ 		   ((cur != '?') || (NXT(1) != '>'))) {
+ 		if (len + 5 >= size) {
+-		    xmlChar *tmp;
+-                    size_t new_size = size * 2;
+-		    tmp = (xmlChar *) xmlRealloc(buf, new_size);
+-		    if (tmp == NULL) {
++		xmlChar *new_buf;
++		size_t new_size;
++
++		new_size = size * 2;
++		/* Ensure new_size is large enough to hold the current data plus
++		 * up to 5 extra bytes for a multibyte UTF-8 sequence and
++		 * a terminating NUL. Doubling until large enough. */
++		while (new_size <= len + 5) {
++			if (new_size > (SIZE_MAX / 2)) {
++				/* avoid overflow */
++				xmlFree(buf);
++				xmlErrMemory(ctxt, NULL);
++			return;
++			}
++			new_size *= 2;
++		}
++		new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++		if (new_buf == NULL) {
++			xmlFree (buf);
+ 			xmlErrMemory(ctxt, NULL);
+-			xmlFree(buf);
+-			ctxt->instate = state;
+ 			return;
+-		    }
+-		    buf = tmp;
+-                    size = new_size;
+ 		}
++		buf = new_buf;
++		size = new_size;
++	}
++
+ 		COPY_BUF(l,buf,len,cur);
+                 if (len > maxLength) {
+                     xmlFatalErrMsgStr(ctxt, XML_ERR_PI_NOT_FINISHED,
+@@ -10206,16 +10266,32 @@ xmlParseCDSect(xmlParserCtxtPtr ctxt) {
+     while (IS_CHAR(cur) &&
+            ((r != ']') || (s != ']') || (cur != '>'))) {
+ 	if (len + 5 >= size) {
+-	    xmlChar *tmp;
+-
+-	    tmp = (xmlChar *) xmlRealloc(buf, size * 2);
+-	    if (tmp == NULL) {
+-		xmlErrMemory(ctxt, NULL);
+-                goto out;
+-	    }
+-	    buf = tmp;
+-	    size *= 2;
++		xmlChar *new_buf;
++		size_t new_size;
++
++		new_size = size * 2;
++		/* Ensure new_size is large enough to hold the current data plus
++		 * up to 5 extra bytes for a multibyte UTF-8 sequence and
++		 * a terminating NUL. Doubling until large enough. */
++		while (new_size <= len + 5) {
++			if (new_size > (SIZE_MAX / 2)) {
++				/* avoid overflow */
++				xmlFree(buf);
++				xmlErrMemory(ctxt, NULL);
++			return;
++			}
++			new_size *= 2;
++		}
++		new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++		if (new_buf == NULL) {
++			xmlFree (buf);
++			xmlErrMemory(ctxt, NULL);
++			return;
++		}
++		buf = new_buf;
++		size = new_size;
+ 	}
++
+ 	COPY_BUF(rl,buf,len,r);
+         if (len > maxLength) {
+             xmlFatalErrMsg(ctxt, XML_ERR_CDATA_NOT_FINISHED,
+@@ -15197,4 +15273,3 @@ xmlCtxtReadIO(xmlParserCtxtPtr ctxt, xmlInputReadCallback ioread,
+     inputPush(ctxt, stream);
+     return (xmlDoRead(ctxt, URL, encoding, options, 1));
+ }
+-

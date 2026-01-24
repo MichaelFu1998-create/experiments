@@ -1,0 +1,24 @@
+diff --git a/src/mat5.c b/src/mat5.c
+index 02a4ebf..7fc16da 100644
+--- a/src/mat5.c
++++ b/src/mat5.c
+@@ -4887,6 +4887,19 @@ Mat_VarReadNextInfo5( mat_t *mat )
+                     size_t size;
+                     nbytes = uncomp_buf[1];
+                     matvar->rank = nbytes / 4;
++                    /* Ensure dims read into uncomp_buf are not out of bounds */
++                    if (!do_clean) {
++                        int max_uncomp_rank = (int)(sizeof(uncomp_buf)/sizeof(uncomp_buf[0]) - 2);
++                        if (matvar->rank < 0 || matvar->rank > max_uncomp_rank) {
++                            if ( do_clean ) free(dims);
++                            (void)fseek((FILE*)mat->fp,nBytes-bytesread,SEEK_CUR);
++                            Mat_VarFree(matvar);
++                            matvar = NULL;
++                            /* Malformed rank in compressed data; fail gracefully */
++                            break;
++                        }
++                    }
++
+                     err = SafeMul(&size, matvar->rank, sizeof(*matvar->dims));
+                     if ( err ) {
+                         if ( do_clean )

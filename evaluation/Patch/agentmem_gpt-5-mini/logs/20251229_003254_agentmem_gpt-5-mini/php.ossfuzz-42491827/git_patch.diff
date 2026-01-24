@@ -1,0 +1,167 @@
+diff --git a/ext/hash/hash_xxhash.c b/ext/hash/hash_xxhash.c
+index 3edcdfc9636..6b8e14a7e30 100644
+--- a/ext/hash/hash_xxhash.c
++++ b/ext/hash/hash_xxhash.c
+@@ -84,7 +84,7 @@ static int php_hash_xxh32_unserialize(
+ 	int r = FAILURE;
+ 	if (magic == PHP_HASH_SERIALIZE_MAGIC_SPEC
+ 		&& (r = php_hash_unserialize_spec(hash, zv, PHP_XXH32_SPEC)) == SUCCESS
+-		&& ctx->s.memsize < 32) {
++		&& ctx->s.memsize < 16) {
+ 		return SUCCESS;
+ 	} else {
+ 		return r != SUCCESS ? r : -2000;
+@@ -214,7 +214,7 @@ static int php_hash_xxh64_unserialize(
+ 	int r = FAILURE;
+ 	if (magic == PHP_HASH_SERIALIZE_MAGIC_SPEC
+ 		&& (r = php_hash_unserialize_spec(hash, zv, PHP_XXH64_SPEC)) == SUCCESS
+-		&& ctx->s.memsize < 32) {
++		&& ctx->s.memsize < 16) {
+ 		return SUCCESS;
+ 	} else {
+ 		return r != SUCCESS ? r : -2000;
+diff --git a/ext/hash/xxhash/xxhash.h b/ext/hash/xxhash/xxhash.h
+index 2d56d23c5d0..13aaa9b103f 100644
+--- a/ext/hash/xxhash/xxhash.h
++++ b/ext/hash/xxhash/xxhash.h
+@@ -911,9 +911,28 @@ static void XXH_free(void* p) { free(p); }
+ 
+ /*! and for memcpy() */
+ #include <string.h>
++/*
++ * Use memmove instead of memcpy to avoid undefined behavior when source and
++ * destination ranges overlap. Some callers of XXH_memcpy (via the inlined
++ * XXH32/XXH64 update paths) may pass buffers that alias each other which
++ * triggers ASan/MSan errors with memcpy-param-overlap. memmove is defined for
++ * overlapping regions and is a minimal, safe fix.
++ */
+ static void* XXH_memcpy(void* dest, const void* src, size_t size)
+ {
+-    return memcpy(dest,src,size);
++    unsigned char* d = (unsigned char*)dest;
++    const unsigned char* s = (const unsigned char*)src;
++    if (d == s || size == 0) return dest;
++    if (d < s) {
++        /* copy forwards */
++        size_t i;
++        for (i = 0; i < size; ++i) d[i] = s[i];
++    } else {
++        /* copy backwards to handle overlap */
++        size_t i = size;
++        while (i--) d[i] = s[i];
++    }
++    return dest;
+ }
+ 
+ #include <limits.h>   /* ULLONG_MAX */
+@@ -1459,21 +1478,27 @@ XXH32_update(XXH32_state_t* state, const void* input, size_t len)
+         state->large_len |= (XXH32_hash_t)((len>=16) | (state->total_len_32>=16));
+ 
+         if (state->memsize + len < 16)  {   /* fill in tmp buffer */
+-            XXH_memcpy((xxh_u8*)(state->mem32) + state->memsize, input, len);
++            memmove((xxh_u8*)(state->mem32) + state->memsize, input, len);
+             state->memsize += (XXH32_hash_t)len;
+             return XXH_OK;
+         }
+ 
+         if (state->memsize) {   /* some data left from previous update */
+-            XXH_memcpy((xxh_u8*)(state->mem32) + state->memsize, input, 16-state->memsize);
+-            {   const xxh_u32* p32 = state->mem32;
++            size_t fill = (state->memsize < 16) ? (16 - state->memsize) : 0;
++            if (fill) {
++                memmove((xxh_u8*)(state->mem32) + state->memsize, input, fill);
++                {   const xxh_u32* p32 = state->mem32;
+                 state->v1 = XXH32_round(state->v1, XXH_readLE32(p32)); p32++;
+                 state->v2 = XXH32_round(state->v2, XXH_readLE32(p32)); p32++;
+                 state->v3 = XXH32_round(state->v3, XXH_readLE32(p32)); p32++;
+                 state->v4 = XXH32_round(state->v4, XXH_readLE32(p32));
+             }
+-            p += 16-state->memsize;
+-            state->memsize = 0;
++            p += fill;
++                state->memsize = 0;
++            } else {
++                /* invalid memsize (>=16), normalize to 0 to avoid underflow */
++                state->memsize = 0;
++            }
+         }
+ 
+         if (p <= bEnd-16) {
+@@ -1497,7 +1522,7 @@ XXH32_update(XXH32_state_t* state, const void* input, size_t len)
+         }
+ 
+         if (p < bEnd) {
+-            XXH_memcpy(state->mem32, p, (size_t)(bEnd-p));
++            memmove(state->mem32, p, (size_t)(bEnd-p));
+             state->memsize = (unsigned)(bEnd-p);
+         }
+     }
+@@ -1998,19 +2023,24 @@ XXH64_update (XXH64_state_t* state, const void* input, size_t len)
+         state->total_len += len;
+ 
+         if (state->memsize + len < 32) {  /* fill in tmp buffer */
+-            XXH_memcpy(((xxh_u8*)state->mem64) + state->memsize, input, len);
++            memmove(((xxh_u8*)state->mem64) + state->memsize, input, len);
+             state->memsize += (xxh_u32)len;
+             return XXH_OK;
+         }
+-
+         if (state->memsize) {   /* tmp buffer is full */
+-            XXH_memcpy(((xxh_u8*)state->mem64) + state->memsize, input, 32-state->memsize);
+-            state->v1 = XXH64_round(state->v1, XXH_readLE64(state->mem64+0));
+-            state->v2 = XXH64_round(state->v2, XXH_readLE64(state->mem64+1));
+-            state->v3 = XXH64_round(state->v3, XXH_readLE64(state->mem64+2));
+-            state->v4 = XXH64_round(state->v4, XXH_readLE64(state->mem64+3));
+-            p += 32-state->memsize;
+-            state->memsize = 0;
++            size_t fill = (state->memsize < 32) ? (32 - state->memsize) : 0;
++            if (fill) {
++                memmove(((xxh_u8*)state->mem64) + state->memsize, input, fill);
++                state->v1 = XXH64_round(state->v1, XXH_readLE64(state->mem64+0));
++                state->v2 = XXH64_round(state->v2, XXH_readLE64(state->mem64+1));
++                state->v3 = XXH64_round(state->v3, XXH_readLE64(state->mem64+2));
++                state->v4 = XXH64_round(state->v4, XXH_readLE64(state->mem64+3));
++                p += fill;
++                state->memsize = 0;
++            } else {
++                /* invalid memsize (>=32), normalize to 0 to avoid underflow */
++                state->memsize = 0;
++            }
+         }
+ 
+         if (p+32 <= bEnd) {
+@@ -2034,7 +2064,7 @@ XXH64_update (XXH64_state_t* state, const void* input, size_t len)
+         }
+ 
+         if (p < bEnd) {
+-            XXH_memcpy(state->mem64, p, (size_t)(bEnd-p));
++            memmove(state->mem64, p, (size_t)(bEnd-p));
+             state->memsize = (unsigned)(bEnd-p);
+         }
+     }
+@@ -4071,7 +4101,7 @@ XXH3_update(XXH3_state_t* state,
+         state->totalLen += len;
+ 
+         if (state->bufferedSize + len <= XXH3_INTERNALBUFFER_SIZE) {  /* fill in tmp buffer */
+-            XXH_memcpy(state->buffer + state->bufferedSize, input, len);
++            memmove(state->buffer + state->bufferedSize, input, len);
+             state->bufferedSize += (XXH32_hash_t)len;
+             return XXH_OK;
+         }
+@@ -4086,7 +4116,7 @@ XXH3_update(XXH3_state_t* state,
+          */
+         if (state->bufferedSize) {
+             size_t const loadSize = XXH3_INTERNALBUFFER_SIZE - state->bufferedSize;
+-            XXH_memcpy(state->buffer + state->bufferedSize, input, loadSize);
++            memmove(state->buffer + state->bufferedSize, input, loadSize);
+             input += loadSize;
+             XXH3_consumeStripes(state->acc,
+                                &state->nbStripesSoFar, state->nbStripesPerBlock,
+@@ -4114,7 +4144,7 @@ XXH3_update(XXH3_state_t* state,
+         XXH_ASSERT(input < bEnd);
+ 
+         /* Some remaining input (always) : buffer it */
+-        XXH_memcpy(state->buffer, input, (size_t)(bEnd-input));
++        memmove(state->buffer, input, (size_t)(bEnd-input));
+         state->bufferedSize = (XXH32_hash_t)(bEnd-input);
+     }
