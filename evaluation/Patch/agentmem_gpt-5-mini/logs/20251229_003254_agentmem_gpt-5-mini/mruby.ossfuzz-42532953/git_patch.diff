@@ -1,0 +1,24 @@
+diff --git a/src/string.c b/src/string.c
+index e214ad4c2..bd1a8c029 100644
+--- a/src/string.c
++++ b/src/string.c
+@@ -623,6 +623,8 @@ memsearch_swar(const char *xs, long m, const char *ys, long n)
+     for (size_t j = 0; zeros; j++) {
+       if (zeros & MASK4) {
+         const mrb_int idx = i + j;
++        /* ensure full pattern fits into haystack */
++        if (idx + m > n) break;
+         const char* p = s0 + idx + 1;
+         if (memcmp(p, xs + 1, m - 2) == 0) {
+           return idx;
+@@ -643,7 +645,9 @@ memsearch_swar(const char *xs, long m, const char *ys, long n)
+     for (;p<e;) {
+       size_t len = e-p;
+       p = (const char*)memchr(p, *xs, len);
+-      if (p == NULL || len < m) break;
++      if (p == NULL) break;
++      size_t rem = (size_t)(e - p);
++      if (rem < (size_t)m) break;
+       if (memcmp(p+1, xs+1, m-1) == 0) return (mrb_int)(p - ys);
+       p++;
+     }

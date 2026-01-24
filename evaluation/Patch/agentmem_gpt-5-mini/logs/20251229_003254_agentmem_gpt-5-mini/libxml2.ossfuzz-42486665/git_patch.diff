@@ -1,0 +1,13 @@
+diff --git a/xinclude.c b/xinclude.c
+index 3c810ca1..063a9bfe 100644
+--- a/xinclude.c
++++ b/xinclude.c
+@@ -1984,7 +1984,7 @@ xmlXIncludeLoadFallback(xmlXIncludeCtxtPtr ctxt, xmlNodePtr fallback, int nr) {
+ 	    ret = -1;
+ 	xmlXIncludeFreeContext(newctxt);
+ 
+-	ctxt->incTab[nr]->inc = fallback->children;
++	ctxt->incTab[nr]->inc = xmlXIncludeCopyNodeList(ctxt, ctxt->doc, ctxt->doc, fallback->children);
+     } else {
+         ctxt->incTab[nr]->inc = NULL;
+     }

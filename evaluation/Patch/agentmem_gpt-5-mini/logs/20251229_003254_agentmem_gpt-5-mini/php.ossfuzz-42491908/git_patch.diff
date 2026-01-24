@@ -1,0 +1,14 @@
+diff --git a/ext/hash/xxhash/xxhash.h b/ext/hash/xxhash/xxhash.h
+index 2d56d23c5d0..6da0be37128 100644
+--- a/ext/hash/xxhash/xxhash.h
++++ b/ext/hash/xxhash/xxhash.h
+@@ -913,7 +913,8 @@ static void XXH_free(void* p) { free(p); }
+ #include <string.h>
+ static void* XXH_memcpy(void* dest, const void* src, size_t size)
+ {
+-    return memcpy(dest,src,size);
++    /* Use memmove to safely handle overlapping memory regions. */
++    return memmove(dest,src,size);
+ }
+ 
+ #include <limits.h>   /* ULLONG_MAX */

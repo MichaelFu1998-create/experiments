@@ -1,0 +1,44 @@
+diff --git a/src/vm.c b/src/vm.c
+index 40a8a8971..969830131 100644
+--- a/src/vm.c
++++ b/src/vm.c
+@@ -1364,7 +1364,7 @@ check_target_class(mrb_state *mrb)
+   return target;
+ }
+ 
+-#define regs (ci->stack)
++#define regs (mrb->c->ci->stack)
+ 
+ static mrb_value
+ hash_new_from_regs(mrb_state *mrb, mrb_int argc, mrb_int idx)
+@@ -2668,7 +2668,14 @@ RETRY_TRY_BLOCK:
+     }
+ 
+     CASE(OP_ARYCAT, B) {
+-      mrb_value splat = mrb_ary_splat(mrb, regs[a+1]);
++      /* compute safe current callinfo index to avoid dereferencing possibly freed ci pointer
++         (some operations may realloc c->cibase and free old callinfo memory). */
++      ptrdiff_t ci_idx = mrb->c->ci - mrb->c->cibase;
++      mrb_callinfo *safe_ci = mrb->c->cibase + ci_idx;
++      mrb_value arg = safe_ci->stack[a+1];
++      mrb_value splat = mrb_ary_splat(mrb, arg);
++      /* reload callinfo/regs after potential reentrant calls */
++      ci = mrb->c->ci;
+       if (mrb_nil_p(regs[a])) {
+         regs[a] = splat;
+       }
+@@ -2689,7 +2696,13 @@ RETRY_TRY_BLOCK:
+     }
+ 
+     CASE(OP_ARYSPLAT, B) {
+-      mrb_value ary = mrb_ary_splat(mrb, regs[a]);
++      /* compute safe current callinfo index to avoid dereferencing possibly freed ci pointer */
++      ptrdiff_t ci_idx = mrb->c->ci - mrb->c->cibase;
++      mrb_callinfo *safe_ci = mrb->c->cibase + ci_idx;
++      mrb_value arg = safe_ci->stack[a];
++      mrb_value ary = mrb_ary_splat(mrb, arg);
++      /* reload callinfo/regs after potential reentrant calls */
++      ci = mrb->c->ci;
+       regs[a] = ary;
+       mrb_gc_arena_restore(mrb, ai);
+       NEXT;

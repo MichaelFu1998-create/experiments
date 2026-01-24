@@ -1,0 +1,88 @@
+diff --git a/src/njs_regexp.c b/src/njs_regexp.c
+--- a/src/njs_regexp.c
++++ b/src/njs_regexp.c
+@@ -1158,13 +1158,16 @@
+ 
+     if (result->object.fast_array) {
+         start = result->start;
++        /* Do not free individual string data here. The string->data
++         * pointers may be referenced by njs_value_t objects returned to
++         * callers; freeing them can cause use-after-free when those
++         * values are later used (e.g., njs_string_prop dereferences
++         * value->string.data). The memory pool will reclaim the
++         * allocations when appropriate.
++         */
++    }
+ 
+-        for (n = 0; n < result->length; n++) {
+-            if (start[n].type == NJS_STRING) {
+-                njs_mp_free(vm->mem_pool, start[n].string.data);
+-            }
+-        }
+-    }
++    (void) n; (void) start;
+ 
+     njs_flathsh_each_init(&lhe, &njs_object_hash_proto);
+ 
+@@ -1771,6 +1774,11 @@
+                 return NJS_ERROR;
+             }
+ 
++            ret = njs_value_to_string(vm, retval, retval);
++            if (njs_slow_path(ret != NJS_OK)) {
++                return ret;
++            }
++
+             (void) njs_string_prop(vm, &sv, retval);
+ 
+             ret = njs_array_string_add(vm, array, sv.start, sv.size,
+diff --git a/src/njs_string.c b/src/njs_string.c
+--- a/src/njs_string.c
++++ b/src/njs_string.c
+@@ -200,17 +200,37 @@
+     const njs_value_t *value)
+ {
+     size_t       size, length;
+-    njs_value_t  s;
+-
+-    if (njs_slow_path(value->string.data == NULL)) {
+-        njs_assert(value->atom_id != NJS_ATOM_STRING_unknown);
+-        (void) njs_atom_to_value(vm, &s, value->atom_id);
+-        value = &s;
++    njs_value_t  s, tmp;
++    const njs_value_t *v = value;
++
++    /* If the provided value is not a string primitive/object, coerce it
++     * to a string first into a temporary. This prevents dereferencing
++     * invalid or freed string pointers when callers pass in values that
++     * may refer to ephemeral or non-string storage.
++     */
++    if (!njs_is_string(v)) {
++        tmp = * (njs_value_t *) v; /* make a local copy */
++
++        if (njs_slow_path(njs_value_to_string(vm, &tmp, &tmp) != NJS_OK)) {
++            /* On error, return empty string info. */
++            string->start = NULL;
++            string->size = 0;
++            string->length = 0;
++            return 0;
++        }
++
++        v = &tmp;
+     }
+ 
+-    string->start = (u_char *) value->string.data->start;
+-    size = value->string.data->size;
+-    length = value->string.data->length;
++    if (njs_slow_path(v->string.data == NULL)) {
++        njs_assert(v->atom_id != NJS_ATOM_STRING_unknown);
++        (void) njs_atom_to_value(vm, &s, v->atom_id);
++        v = &s;
++    }
++
++    string->start = (u_char *) v->string.data->start;
++    size = v->string.data->size;
++    length = v->string.data->length;
+ 
+     string->size = size;
+     string->length = length;

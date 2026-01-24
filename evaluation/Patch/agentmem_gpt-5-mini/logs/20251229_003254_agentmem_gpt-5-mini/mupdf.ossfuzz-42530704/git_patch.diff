@@ -1,0 +1,28 @@
+diff --git a/source/fitz/load-bmp.c b/source/fitz/load-bmp.c
+index 402fc0d31..1e13c07f3 100644
+--- a/source/fitz/load-bmp.c
++++ b/source/fitz/load-bmp.c
+@@ -806,13 +806,19 @@ bmp_read_color_profile(fz_context *ctx, struct info *info, const unsigned char *
+ 		fz_buffer *profile;
+ 		fz_colorspace *cs;
+ 
+-		if ((uint32_t)(end - begin) < info->profilesize)
+ 		{
+-			fz_warn(ctx, "ignoring truncated color profile in bmp image");
+-			return NULL;
++			size_t buf_len = (size_t)(end - begin);
++			/* Validate that profileoffset and profilesize are within the provided buffer.
++			   Ensure offset <= buf_len and profilesize <= buf_len - offset to avoid
++			   any overflow or out-of-bounds reads when copying the profile data. */
++			if ((size_t)info->profileoffset > buf_len || (size_t)info->profilesize > buf_len - (size_t)info->profileoffset)
++			{
++				fz_warn(ctx, "ignoring truncated or out-of-bounds color profile in bmp image");
++				return NULL;
++			}
+ 		}
+ 
+-		profile = fz_new_buffer_from_copied_data(ctx, begin + info->profileoffset, info->profilesize);
++		profile = fz_new_buffer_from_copied_data(ctx, begin + (size_t)info->profileoffset, (size_t)info->profilesize);
+ 
+ 		fz_try(ctx)
+ 			cs = fz_new_icc_colorspace(ctx, FZ_COLORSPACE_RGB, 0, "BMPRGB", profile);

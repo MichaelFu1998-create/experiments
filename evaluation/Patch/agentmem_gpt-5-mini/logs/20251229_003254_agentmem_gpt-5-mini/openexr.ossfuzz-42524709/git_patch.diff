@@ -1,0 +1,84 @@
+diff --git a/src/lib/OpenEXRCore/compression.c b/src/lib/OpenEXRCore/compression.c
+index 1d2eaea5..b81cb48b 100644
+--- a/src/lib/OpenEXRCore/compression.c
++++ b/src/lib/OpenEXRCore/compression.c
+@@ -9,6 +9,7 @@
+ #include "internal_structs.h"
+ 
+ #include <libdeflate.h>
++#include <string.h>
+ 
+ #if (                                                                          \
+     LIBDEFLATE_VERSION_MAJOR > 1 ||                                            \
+@@ -135,15 +136,49 @@ exr_uncompress_buffer (
+ 
+     if (decomp)
+     {
++        /* Create a padded copy of the input to prevent libdeflate from
++         * performing small unaligned reads past the end of the provided
++         * buffer when data is truncated or malformed. We add a small
++         * padding region filled with zeros. If allocation fails we'll
++         * fall back to using the original buffer (libdeflate may still
++         * report corruption). */
++        const unsigned char* def_in = (const unsigned char*) in;
++        size_t def_in_bytes = in_bytes;
++        unsigned char* tmp_in = NULL;
++        const size_t pad = 8;
++        if (in_bytes > 0 && in_bytes <= SIZE_MAX - pad) {
++            def_in_bytes = in_bytes + pad;
++            void* (*alloc_fn)(size_t) = pctxt ? pctxt->alloc_fn : internal_exr_alloc;
++            tmp_in = (unsigned char*) alloc_fn(def_in_bytes);
++            if (tmp_in) {
++                const volatile unsigned char* __src = (const volatile unsigned char*) in;
++                size_t __i = in_bytes;
++                while (__i) { __i--; tmp_in[__i] = __src[__i]; }
++                memset(tmp_in + in_bytes, 0, def_in_bytes - in_bytes);
++                def_in = tmp_in;
++            } else {
++                /* If we cannot allocate a padded buffer, fail early rather than
++                 * pass the unpadded input to libdeflate which may perform
++                 * unaligned reads past the end of the buffer. */
++                libdeflate_free_decompressor (decomp);
++                return EXR_ERR_CORRUPT_CHUNK;
++            }
++        }
++
+         res = libdeflate_zlib_decompress_ex (
+             decomp,
+-            in,
+-            in_bytes,
++            def_in,
++            def_in_bytes,
+             out,
+             out_bytes_avail,
+             &actual_in_bytes,
+             actual_out);
+ 
++        if (tmp_in) {
++            void (*free_fn)(void*) = pctxt ? pctxt->free_fn : internal_exr_free;
++            free_fn(tmp_in);
++        }
++
+         libdeflate_free_decompressor (decomp);
+ 
+         if (res == LIBDEFLATE_SUCCESS)
+diff --git a/src/lib/OpenEXRCore/internal_dwa_compressor.h b/src/lib/OpenEXRCore/internal_dwa_compressor.h
+index 688bd51a..61229d6a 100644
+--- a/src/lib/OpenEXRCore/internal_dwa_compressor.h
++++ b/src/lib/OpenEXRCore/internal_dwa_compressor.h
+@@ -843,6 +843,15 @@ DwaCompressor_uncompress (
+     compressedDcBuf  = compressedAcBuf + (ptrdiff_t) (acCompressedSize);
+     compressedRleBuf = compressedDcBuf + (ptrdiff_t) (dcCompressedSize);
+ 
++    /* Bounds check the computed compressed buffers against the provided
++     * input region to prevent downstream callers from reading past the
++     * provided chunk when input data is malformed or truncated. */
++    const uint8_t* inEnd = inPtr + iSize;
++    if (unknownCompressedSize > 0 && (compressedUnknownBuf + (size_t)unknownCompressedSize > inEnd)) { return EXR_ERR_CORRUPT_CHUNK; }
++    if (acCompressedSize > 0 && (compressedAcBuf + (size_t)acCompressedSize > inEnd)) { return EXR_ERR_CORRUPT_CHUNK; }
++    if (dcCompressedSize > 0 && (compressedDcBuf + (size_t)dcCompressedSize > inEnd)) { return EXR_ERR_CORRUPT_CHUNK; }
++    if (rleCompressedSize > 0 && (compressedRleBuf + (size_t)rleCompressedSize > inEnd)) { return EXR_ERR_CORRUPT_CHUNK; }
++
+     //
+     // Sanity check that the version is something we expect. Right now,
+     // we can decode version 0, 1, and 2. v1 adds 'end of block' symbols

@@ -1,0 +1,210 @@
+{
+  "instance_id": "njs.ossfuzz-414642181",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\"analysis_type\":\"allocation\",\"findings\":[{\"file\":\"/src/njs/src/njs_string.c\",\"line\":211,\"message\":\"njs_string_prop dereferences value->string.data unconditionally, risking use-after-free if the value points to freed string storage\",\"severity\":\"error\"},{\"file\":\"/src/njs/src/njs_regexp.c\",\"line\":1774,\"message\":\"njs_regexp_prototype_symbol_split calls njs_string_prop on retval obtained from regexp execution results; retval may reference storage already freed by njs_regexp_exec_result_free\",\"severity\":\"error\"},{\"file\":\"/src/njs/src/njs_regexp.c\",\"line\":1149,\"message\":\"njs_regexp_exec_result_free calls njs_mp_free on per-result string data (when fast_array) which can invalidate string values exposed to callers\",\"severity\":\"warning\"}],\"dataflow_summary\":\"(allocation analysis) Not a taint/dataflow issue. Static traces show a lifetime/ownership mismatch: values returned from njs_regexp_exec_result point into result-owned storage that can be freed by njs_regexp_exec_result_free while callers still hold/inspect those njs_value_t string values.\",\"key_insight\":\"Root cause is a lifetime/ownership mismatch: regexp result cleanup frees internal string.data while Symbol.split (and similar callers) access those string values via njs_string_prop, which unconditionally dereferences value->string.data, causing segmentation faults for dangling pointers.\",\"fix_suggestions\":[{\"approach\":\"Deep-copy capture strings before freeing the regexp result (allocate new string values for captures used by caller)\",\"reasoning\":\"Ensures callers operate on independent, live string storage even if the regexp result is freed; simple to implement at the call-site (make a copy before calling njs_regexp_exec_result_free) and robust.\",\"trade_offs\":\"Higher memory and CPU use due to copying; must handle allocation failures and adjust tests/performance expectations.\"},{\"approach\":\"Delay/freeing ownership: change regexp result lifetime semantics (reference counting or transfer ownership) so memory is freed only once no live references remain\",\"reasoning\":\"Preserves zero-copy behavior for performance while ensuring correctness via clear ownership; avoids extra copies on hot paths.\",\"trade_offs\":\"More invasive: requires refcounting or GC-like ownership changes across codebase, careful handling to avoid leaks or double-free.\"},{\"approach\":\"Tighten APIs: avoid calling njs_string_prop on values that may be result-internal, or make njs_array_string_add perform a defensive copy of incoming pointers when they point into ephemeral result storage\",\"reasoning\":\"Localizes fixes to split/array-add code paths; njs_array_string_add could document and enforce copying semantics to prevent use-after-free.\",\"trade_offs\":\"Partial fixes may miss other call sites; requires auditing other places that consume regexp results.\"}]}",
+    "parsed_output": {
+      "analysis_type": "allocation",
+      "findings": [
+        {
+          "file": "/src/njs/src/njs_string.c",
+          "line": 211,
+          "message": "njs_string_prop dereferences value->string.data unconditionally, risking use-after-free if the value points to freed string storage",
+          "severity": "error"
+        },
+        {
+          "file": "/src/njs/src/njs_regexp.c",
+          "line": 1774,
+          "message": "njs_regexp_prototype_symbol_split calls njs_string_prop on retval obtained from regexp execution results; retval may reference storage already freed by njs_regexp_exec_result_free",
+          "severity": "error"
+        },
+        {
+          "file": "/src/njs/src/njs_regexp.c",
+          "line": 1149,
+          "message": "njs_regexp_exec_result_free calls njs_mp_free on per-result string data (when fast_array) which can invalidate string values exposed to callers",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "(allocation analysis) Not a taint/dataflow issue. Static traces show a lifetime/ownership mismatch: values returned from njs_regexp_exec_result point into result-owned storage that can be freed by njs_regexp_exec_result_free while callers still hold/inspect those njs_value_t string values.",
+      "key_insight": "Root cause is a lifetime/ownership mismatch: regexp result cleanup frees internal string.data while Symbol.split (and similar callers) access those string values via njs_string_prop, which unconditionally dereferences value->string.data, causing segmentation faults for dangling pointers.",
+      "fix_suggestions": [
+        {
+          "approach": "Deep-copy capture strings before freeing the regexp result (allocate new string values for captures used by caller)",
+          "reasoning": "Ensures callers operate on independent, live string storage even if the regexp result is freed; simple to implement at the call-site (make a copy before calling njs_regexp_exec_result_free) and robust.",
+          "trade_offs": "Higher memory and CPU use due to copying; must handle allocation failures and adjust tests/performance expectations."
+        },
+        {
+          "approach": "Delay/freeing ownership: change regexp result lifetime semantics (reference counting or transfer ownership) so memory is freed only once no live references remain",
+          "reasoning": "Preserves zero-copy behavior for performance while ensuring correctness via clear ownership; avoids extra copies on hot paths.",
+          "trade_offs": "More invasive: requires refcounting or GC-like ownership changes across codebase, careful handling to avoid leaks or double-free."
+        },
+        {
+          "approach": "Tighten APIs: avoid calling njs_string_prop on values that may be result-internal, or make njs_array_string_add perform a defensive copy of incoming pointers when they point into ephemeral result storage",
+          "reasoning": "Localizes fixes to split/array-add code paths; njs_array_string_add could document and enforce copying semantics to prevent use-after-free.",
+          "trade_offs": "Partial fixes may miss other call sites; requires auditing other places that consume regexp results."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 184667,
+      "output_tokens": 9093
+    },
+    "timing": {
+      "start_time": 1769122750.763736,
+      "end_time": 1769122883.0643866,
+      "duration": 132.30065059661865
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA use-after-free / invalid pointer dereference in njs: njs_regexp_prototype_symbol_split (src/njs/src/njs_regexp.c) invokes njs_string_prop (src/njs/src/njs_string.c) on an invalid or freed string value from RegExp execution results. njs_string_prop can dereference a bogus/high-address pointer, causing a segmentation fault and oth",
+      "total_steps": 9,
+      "total_duration": 132.30065059661865,
+      "total_input_tokens": 184667,
+      "total_output_tokens": 9093,
+      "total_cost": 0.015933175,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\", \"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x558c48105d2b\",\n    \"type\": \"use-after-free / invalid pointer dereference (SIGSEGV)\",\n    \"location\": \"src/njs/src/njs_string.c:211\"\n  },\n  \"backtrace\": [\n    \"#0  njs_string_prop (src/njs/src/njs_string.c:211)\",\n    \"#1  njs_regexp_prototype_symbol_split (src/njs/src/njs_regexp.c:1774)\",\n    \"#2  njs_function_frame_invoke (src/njs/src/njs_function.c:645)\",\n    \"#3  njs_string_prototype_split (src/njs/src/njs_string.c:2704)\",\n    \"#4  njs_vmcode_interpreter (src/njs/src/njs_vmcode.c:1514)\",\n    \"#5  njs_vm_start (src/njs/src/njs_vm.c:698)\"\n  ],\n  \"memory_state\": \"GDB shows a segmentation fault inside njs_string_prop. Several registers contain obviously bogus/high addresses (e.g., rdi = 0x7ff8000000000000, rax = 0xfff000000000000). The instruction pointer is inside njs_string_prop. There is no direct heap allocation info from GDB; Valgrind was unavailable. UBSan rebuild attempt failed, so we only have GDB evidence that an invalid/freed/bogus pointer (likely a JS string/value pointer) is being dereferenced.\",\n  \"root_cause_hint\": \"Runtime evidence indicates njs_regexp_prototype_symbol_split calls njs_string_prop with an invalid string/value pointer produced by RegExp execution. The invalid pointer (high/bogus address) is dereferenced in njs_string_prop causing SIGSEGV. This matches a use-after-free or lifetime/ownership bug where the RegExp match result's backing value is not kept alive or validated before being used.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure the RegExp match result string is retained or copied before passing to njs_string_prop (adjust reference counting or explicitly allocate/copy the string),\",\n      \"reasoning\": \"If the match result is ephemeral and freed soon after RegExp execution, copying or bumping its reference count before calling into njs_string_prop prevents dereferencing freed memory. This directly addresses the lifetime issue shown by the crash.\",\n      \"trade_offs\": \"Extra copies increase memory use and CPU cost. Changing ownership/refcounting requires careful audits across the RegExp API to avoid leaks or double-frees.\"\n    },\n    {\n      \"approach\": \"Add defensive validation in njs_string_prop (and callers) to verify the input value is a valid string object/value before dereferencing (check tags/flags and pointer ranges), and return a JS TypeError or convert non-strings safely.\",\n      \"reasoning\": \"A runtime check prevents dereferencing obviously bogus pointers and fails fast with a JS-level error rather than crashing. This is a low-risk mitigation and helps safety even if upstream code has bugs.\",\n      \"trade_offs\": \"Per-call checks add runtime overhead and may mask underlying lifetime problems instead of fixing them. Also, checks must be correct to avoid false positives.\"\n    },\n    {\n      \"approach\": \"Fix the RegExp result ownership model so that results that are exposed to JS callers are always rooted (GC root or stored in an object) until all native use is complete.\",\n      \"reasoning\": \"This is a systemic fix: ensuring GC/ownership invariants eliminates the class of use-after-free bugs where ephemeral native values are reclaimed prematurely. It aligns with engine invariants and prevents similar future bugs.\",\n      \"trade_offs\": \"Requires more invasive changes to the memory management/GC interaction and careful testing. May be more complex to implement but yields a robust fix.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan"
+      ],
+      "crash_info": {
+        "address": "0x558c48105d2b",
+        "type": "use-after-free / invalid pointer dereference (SIGSEGV)",
+        "location": "src/njs/src/njs_string.c:211"
+      },
+      "backtrace": [
+        "#0  njs_string_prop (src/njs/src/njs_string.c:211)",
+        "#1  njs_regexp_prototype_symbol_split (src/njs/src/njs_regexp.c:1774)",
+        "#2  njs_function_frame_invoke (src/njs/src/njs_function.c:645)",
+        "#3  njs_string_prototype_split (src/njs/src/njs_string.c:2704)",
+        "#4  njs_vmcode_interpreter (src/njs/src/njs_vmcode.c:1514)",
+        "#5  njs_vm_start (src/njs/src/njs_vm.c:698)"
+      ],
+      "memory_state": "GDB shows a segmentation fault inside njs_string_prop. Several registers contain obviously bogus/high addresses (e.g., rdi = 0x7ff8000000000000, rax = 0xfff000000000000). The instruction pointer is inside njs_string_prop. There is no direct heap allocation info from GDB; Valgrind was unavailable. UBSan rebuild attempt failed, so we only have GDB evidence that an invalid/freed/bogus pointer (likely a JS string/value pointer) is being dereferenced.",
+      "root_cause_hint": "Runtime evidence indicates njs_regexp_prototype_symbol_split calls njs_string_prop with an invalid string/value pointer produced by RegExp execution. The invalid pointer (high/bogus address) is dereferenced in njs_string_prop causing SIGSEGV. This matches a use-after-free or lifetime/ownership bug where the RegExp match result's backing value is not kept alive or validated before being used.",
+      "fix_suggestions": [
+        {
+          "approach": "Ensure the RegExp match result string is retained or copied before passing to njs_string_prop (adjust reference counting or explicitly allocate/copy the string),",
+          "reasoning": "If the match result is ephemeral and freed soon after RegExp execution, copying or bumping its reference count before calling into njs_string_prop prevents dereferencing freed memory. This directly addresses the lifetime issue shown by the crash.",
+          "trade_offs": "Extra copies increase memory use and CPU cost. Changing ownership/refcounting requires careful audits across the RegExp API to avoid leaks or double-frees."
+        },
+        {
+          "approach": "Add defensive validation in njs_string_prop (and callers) to verify the input value is a valid string object/value before dereferencing (check tags/flags and pointer ranges), and return a JS TypeError or convert non-strings safely.",
+          "reasoning": "A runtime check prevents dereferencing obviously bogus pointers and fails fast with a JS-level error rather than crashing. This is a low-risk mitigation and helps safety even if upstream code has bugs.",
+          "trade_offs": "Per-call checks add runtime overhead and may mask underlying lifetime problems instead of fixing them. Also, checks must be correct to avoid false positives."
+        },
+        {
+          "approach": "Fix the RegExp result ownership model so that results that are exposed to JS callers are always rooted (GC root or stored in an object) until all native use is complete.",
+          "reasoning": "This is a systemic fix: ensuring GC/ownership invariants eliminates the class of use-after-free bugs where ephemeral native values are reclaimed prematurely. It aligns with engine invariants and prevents similar future bugs.",
+          "trade_offs": "Requires more invasive changes to the memory management/GC interaction and careful testing. May be more complex to implement but yields a robust fix."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 36514,
+      "output_tokens": 3812
+    },
+    "timing": {
+      "start_time": 1769122883.0758502,
+      "end_time": 1769122929.6995883,
+      "duration": 46.623738050460815
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA use-after-free / invalid pointer dereference in njs: njs_regexp_prototype_symbol_split (src/njs/src/njs_regexp.c) invokes njs_string_prop (src/njs/src/njs_string.c) on an invalid or freed string value from RegExp execution results. njs_string_prop can dereference a bogus/high-address pointer, causing a segmentation fault and oth",
+      "total_steps": 4,
+      "total_duration": 46.623738050460815,
+      "total_input_tokens": 36514,
+      "total_output_tokens": 3812,
+      "total_cost": 0.0057554500000000005,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"src/njs_string.c\",\n  \"function_analyzed\": \"njs_string_prop\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"0c041ea7759c\",\n      \"message\": \"Refactored working with built-in strings, symbols and small integers\",\n      \"changes\": \"Major refactor: atom IDs for strings/symbols, optimized string operations, removed short string inlining; touched njs_string.c and njs_regexp.c\",\n      \"relevance\": \"Large refactor changed string/value representation and lifetimes \u2014 likely introduced subtle ownership/lifetime mismatches used by njs_string_prop and RegExp result handling.\"\n    },\n    {\n      \"hash\": \"dc31431afda3\",\n      \"message\": \"Fixed regexp undefined value of captured group\",\n      \"changes\": \"Patch in src/njs_regexp.c to handle undefined captured groups (OSS-Fuzz)\",\n      \"relevance\": \"Shows prior problems with RegExp capture handling; related fixes suggest captures and returned values required special handling and may interact with njs_string_prop.\"\n    },\n    {\n      \"hash\": \"4e0553f7ea68\",\n      \"message\": \"Change: removed byte strings API\",\n      \"changes\": \"Removed byte string APIs and replaced calls with new string creation APIs across codebase (src/njs_string.c, builtin changes)\",\n      \"relevance\": \"Removal of byte-strings changed how string values are created/returned; could alter where string->data points and its allocation lifetime leading to dangling pointers if ownership is assumed differently.\"\n    },\n    {\n      \"hash\": \"2d098d2a1c85\",\n      \"message\": \"Removed code for byte strings in built-in functions\",\n      \"changes\": \"Removed byte string code paths from many builtin functions, updated related call sites\",\n      \"relevance\": \"Further change to string creation/return behavior that affects callers (including RegExp) that relied on older semantics.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The bug likely stems from a refactor of built-in string representation and removal of byte-string APIs (notably the 0c041ea7... refactor). These changes changed ownership/lifetimes of string data returned from RegExp execution; subsequent RegExp handling and frees (njs_regexp_exec_result_free) can leave njs_value_t references pointing at freed/bogus string->data. njs_string_prop dereferences value->string.data without sufficient ownership/lifetime checks, causing use-after-free/segfault.\",\n  \"fix_hints\": \"History shows fixes around RegExp capture handling and string representation. Two patterns emerge: (1) ensure capture values are normalized/copied into stable values before freeing RegExp internals; (2) harden string property access to avoid dereferencing invalid string pointers (validate value->string.data or convert via atom API).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure captured group values are materialized/copied to independent njs_value objects before freeing RegExp exec results (deep copy or string allocation for returned captures).\",\n      \"reasoning\": \"This preserves valid memory for callers: the captured strings become owned by returned values and survive freeing of the internal exec result. Aligns with past fixes that adjust how regexp captures are returned.\",\n      \"trade_offs\": \"Extra allocations and memory use; slight performance hit for frequent RegExp calls, but is safe and straightforward.\")\n    },\n    {\n      \"approach\": \"Delay or restructure njs_regexp_exec_result_free so the exec result is freed only after all external consumers have read needed properties (change lifetime management).\",\n      \"reasoning\": \"Maintains existing non-copying behavior and avoids unnecessary allocations; fixes dangling-pointer by ensuring the backing storage stays valid while used.\",\n      \"trade_offs\": \"Requires careful lifetime management; harder to reason about and may complicate memory pool usage. Risk of leaks if not carefully applied.\"\n    },\n    {\n      \"approach\": \"Harden njs_string_prop to validate value->string.data before dereference and gracefully handle unexpected/bogus pointers (e.g., check for NULL, atom fallback, or fail-safe conversion).\",\n      \"reasoning\": \"Adds defensive checks at the crash site, preventing immediate crashes even if ownership errors remain elsewhere. Complementary to other fixes.\",\n      \"trade_offs\": \"May mask the root ownership problem; added checks incur minor runtime cost and complexity.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"src/njs_string.c\",\n  \"function_analyzed\": \"njs_string_prop\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"0c041ea7759c\",\n      \"message\": \"Refactored working with built-in strings, symbols and small integers\",\n      \"changes\": \"Major refactor: atom IDs for strings/symbols, optimized string operations, removed short string inlining; touched njs_string.c and njs_regexp.c\",\n      \"relevance\": \"Large refactor changed string/value representation and lifetimes \u2014 likely introduced subtle ownership/lifetime mismatches used by njs_string_prop and RegExp result handling.\"\n    },\n    {\n      \"hash\": \"dc31431afda3\",\n      \"message\": \"Fixed regexp undefined value of captured group\",\n      \"changes\": \"Patch in src/njs_regexp.c to handle undefined captured groups (OSS-Fuzz)\",\n      \"relevance\": \"Shows prior problems with RegExp capture handling; related fixes suggest captures and returned values required special handling and may interact with njs_string_prop.\"\n    },\n    {\n      \"hash\": \"4e0553f7ea68\",\n      \"message\": \"Change: removed byte strings API\",\n      \"changes\": \"Removed byte string APIs and replaced calls with new string creation APIs across codebase (src/njs_string.c, builtin changes)\",\n      \"relevance\": \"Removal of byte-strings changed how string values are created/returned; could alter where string->data points and its allocation lifetime leading to dangling pointers if ownership is assumed differently.\"\n    },\n    {\n      \"hash\": \"2d098d2a1c85\",\n      \"message\": \"Removed code for byte strings in built-in functions\",\n      \"changes\": \"Removed byte string code paths from many builtin functions, updated related call sites\",\n      \"relevance\": \"Further change to string creation/return behavior that affects callers (including RegExp) that relied on older semantics.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The bug likely stems from a refactor of built-in string representation and removal of byte-string APIs (notably the 0c041ea7... refactor). These changes changed ownership/lifetimes of string data returned from RegExp execution; subsequent RegExp handling and frees (njs_regexp_exec_result_free) can leave njs_value_t references pointing at freed/bogus string->data. njs_string_prop dereferences value->string.data without sufficient ownership/lifetime checks, causing use-after-free/segfault.\",\n  \"fix_hints\": \"History shows fixes around RegExp capture handling and string representation. Two patterns emerge: (1) ensure capture values are normalized/copied into stable values before freeing RegExp internals; (2) harden string property access to avoid dereferencing invalid string pointers (validate value->string.data or convert via atom API).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Ensure captured group values are materialized/copied to independent njs_value objects before freeing RegExp exec results (deep copy or string allocation for returned captures).\",\n      \"reasoning\": \"This preserves valid memory for callers: the captured strings become owned by returned values and survive freeing of the internal exec result. Aligns with past fixes that adjust how regexp captures are returned.\",\n      \"trade_offs\": \"Extra allocations and memory use; slight performance hit for frequent RegExp calls, but is safe and straightforward.\")\n    },\n    {\n      \"approach\": \"Delay or restructure njs_regexp_exec_result_free so the exec result is freed only after all external consumers have read needed properties (change lifetime management).\",\n      \"reasoning\": \"Maintains existing non-copying behavior and avoids unnecessary allocations; fixes dangling-pointer by ensuring the backing storage stays valid while used.\",\n      \"trade_offs\": \"Requires careful lifetime management; harder to reason about and may complicate memory pool usage. Risk of leaks if not carefully applied.\"\n    },\n    {\n      \"approach\": \"Harden njs_string_prop to validate value->string.data before dereference and gracefully handle unexpected/bogus pointers (e.g., check for NULL, atom fallback, or fail-safe conversion).\",\n      \"reasoning\": \"Adds defensive checks at the crash site, preventing immediate crashes even if ownership errors remain elsewhere. Complementary to other fixes.\",\n      \"trade_offs\": \"May mask the root ownership problem; added checks incur minor runtime cost and complexity.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 159123,
+      "output_tokens": 9785
+    },
+    "timing": {
+      "start_time": 1769122929.7031305,
+      "end_time": 1769123031.5044773,
+      "duration": 101.80134677886963
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA use-after-free / invalid pointer dereference in njs: njs_regexp_prototype_symbol_split (src/njs/src/njs_regexp.c) invokes njs_string_prop (src/njs/src/njs_string.c) on an invalid or freed string value from RegExp execution results. njs_string_prop can dereference a bogus/high-address pointer, causing a segmentation fault and oth",
+      "total_steps": 14,
+      "total_duration": 101.80134677886963,
+      "total_input_tokens": 159123,
+      "total_output_tokens": 9785,
+      "total_cost": 0.014281775,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"A lifetime/ownership mismatch: RegExp execution stored capture strings in result-owned njs_string_t storage which was freed (njs_mp_free) by njs_regexp_exec_result_free while callers (e.g., Symbol.split) still held njs_value_t references into that storage. njs_string_prop dereferenced value->string.data unconditionally, leading to use-after-free and SIGSEGV.\",\n  \"fix_approach\": \"Applied a minimal, focused fix with three parts: (1) Prevent freeing individual capture string data in njs_regexp_exec_result_free so returned njs_value_t references remain valid until the memory pool reclaims them; (2) Ensure callers convert capture values to proper string values before calling njs_string_prop in the RegExp.prototype[Symbol.split] path (added njs_value_to_string call before njs_string_prop to materialize strings); (3) Harden njs_string_prop to defensively coerce non-string values to string into a temporary before dereferencing string->data, avoiding dereference of bogus pointers.\",\n  \"files_modified\": [\"src/njs/src/njs_regexp.c\", \"src/njs/src/njs_string.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "A lifetime/ownership mismatch: RegExp execution stored capture strings in result-owned njs_string_t storage which was freed (njs_mp_free) by njs_regexp_exec_result_free while callers (e.g., Symbol.split) still held njs_value_t references into that storage. njs_string_prop dereferenced value->string.data unconditionally, leading to use-after-free and SIGSEGV.",
+      "fix_approach": "Applied a minimal, focused fix with three parts: (1) Prevent freeing individual capture string data in njs_regexp_exec_result_free so returned njs_value_t references remain valid until the memory pool reclaims them; (2) Ensure callers convert capture values to proper string values before calling njs_string_prop in the RegExp.prototype[Symbol.split] path (added njs_value_to_string call before njs_string_prop to materialize strings); (3) Harden njs_string_prop to defensively coerce non-string values to string into a temporary before dereferencing string->data, avoiding dereference of bogus pointers.",
+      "files_modified": [
+        "src/njs/src/njs_regexp.c",
+        "src/njs/src/njs_string.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 1648616,
+      "output_tokens": 37383
+    },
+    "timing": {
+      "start_time": 1769123031.511319,
+      "end_time": 1769123442.8546617,
+      "duration": 411.3433427810669
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/njs\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/njs`. Consider the following issue description:\n\n<issue_description>\nA use-after-free / invalid pointer dereference in njs: njs_regexp_prototype_symbol_split (src/njs/src/njs_regexp.c) invokes njs_string_prop (src/njs/src/njs_string.c) on an invalid or freed string value from RegExp execution results. njs_string_prop can dereference a bogus/high-address pointer, causing a segmentation fault and oth",
+      "total_steps": 50,
+      "total_duration": 411.3433427810669,
+      "total_input_tokens": 1648616,
+      "total_output_tokens": 37383,
+      "total_cost": 0.0752536,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 2028920,
+    "output_tokens": 60073
+  },
+  "timing": {
+    "total_duration": 692.1069250106812
+  }
+}

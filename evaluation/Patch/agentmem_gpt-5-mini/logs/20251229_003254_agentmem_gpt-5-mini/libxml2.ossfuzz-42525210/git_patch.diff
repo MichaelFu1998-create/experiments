@@ -1,0 +1,323 @@
+diff --git a/HTMLparser.c b/HTMLparser.c
+index a3c47f69..86746ed1 100644
+--- a/HTMLparser.c
++++ b/HTMLparser.c
+@@ -282,13 +282,13 @@ htmlNodeInfoPop(htmlParserCtxtPtr ctxt)
+  *   COPY(to) copy one char to *to, increment CUR_PTR and to accordingly
+  */
+ 
+-#define UPPER (toupper(*ctxt->input->cur))
++#define UPPER (toupper(NXT(0)))
+ 
+ #define SKIP(val) ctxt->input->cur += (val),ctxt->input->col+=(val)
+ 
+ #define NXT(val) ctxt->input->cur[(val)]
+ 
+-#define UPP(val) (toupper(ctxt->input->cur[(val)]))
++#define UPP(val) (toupper(NXT(val)))
+ 
+ #define CUR_PTR ctxt->input->cur
+ #define BASE_PTR ctxt->input->base
+@@ -305,10 +305,10 @@ htmlNodeInfoPop(htmlParserCtxtPtr ctxt)
+ 
+ /* Imported from XML */
+ 
+-#define CUR (*ctxt->input->cur)
++#define CUR (NXT(0))
+ #define NEXT xmlNextChar(ctxt)
+ 
+-#define RAW (ctxt->token ? -1 : (*ctxt->input->cur))
++#define RAW (ctxt->token ? -1 : (int)NXT(0))
+ 
+ 
+ #define NEXTL(l) do {							\
+@@ -2604,8 +2604,8 @@ htmlParseHTMLName_nonInvasive(htmlParserCtxtPtr ctxt) {
+     int i = 0;
+     xmlChar loc[HTML_PARSER_BUFFER_SIZE];
+ 
+-    if (!IS_ASCII_LETTER(NXT(1)) && (NXT(1) != '_') &&
+-        (NXT(1) != ':')) return(NULL);
++    if (!IS_ASCII_LETTER(((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0)) && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) != '_') &&
++        (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) != ':')) return(NULL);
+ 
+     while ((i < HTML_PARSER_BUFFER_SIZE) &&
+            ((IS_ASCII_LETTER(NXT(1+i))) || (IS_ASCII_DIGIT(NXT(1+i))) ||
+@@ -2756,11 +2756,27 @@ htmlParseHTMLAttribute(htmlParserCtxtPtr ctxt, const xmlChar stop) {
+     /*
+      * Ok loop until we reach one of the ending chars
+      */
+-    while ((CUR != 0) && (CUR != stop)) {
++    while ((ctxt->input->cur < ctxt->input->end) && (ctxt->input->cur[0] != 0) && (ctxt->input->cur[0] != stop)) {
+ 	if ((stop == 0) && (CUR == '>')) break;
+ 	if ((stop == 0) && (IS_BLANK_CH(CUR))) break;
+         if (CUR == '&') {
+-	    if (NXT(1) == '#') {
++            /* ensure ((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) cannot read past input buffer */
++            if ((ctxt->input->cur + 1) >= ctxt->input->end) {
++                GROW;
++                if (ctxt->instate == XML_PARSER_EOF) {
++                    xmlFree(buffer);
++                    return(NULL);
++                }
++            }
++
++	    {
++            xmlChar nextch = 0;
++            if ((ctxt->input->cur + 1) >= ctxt->input->end) {
++                GROW;
++            }
++            if ((ctxt->input->cur + 1) < ctxt->input->end)
++                nextch = ctxt->input->cur[1];
++            if (nextch == '#') {
+ 		unsigned int c;
+ 		int bits;
+ 
+@@ -3104,7 +3120,7 @@ htmlParseScript(htmlParserCtxtPtr ctxt) {
+ 
+     cur = CUR_CHAR(l);
+     while (cur != 0) {
+-	if ((cur == '<') && (NXT(1) == '/')) {
++	if ((cur == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '/')) {
+             /*
+              * One should break here, the specification is clear:
+              * Authors should therefore escape "</" within the content.
+@@ -3352,7 +3368,7 @@ htmlParsePI(htmlParserCtxtPtr ctxt) {
+     const xmlChar *target;
+     xmlParserInputState state;
+ 
+-    if ((RAW == '<') && (NXT(1) == '?')) {
++    if ((RAW == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '?')) {
+ 	state = ctxt->instate;
+         ctxt->instate = XML_PARSER_PI;
+ 	/*
+@@ -3476,7 +3492,7 @@ htmlParseComment(htmlParserCtxtPtr ctxt) {
+     /*
+      * Check that there is a comment right here.
+      */
+-    if ((RAW != '<') || (NXT(1) != '!') ||
++    if ((RAW != '<') || (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) != '!') ||
+         (NXT(2) != '-') || (NXT(3) != '-')) return;
+ 
+     state = ctxt->instate;
+@@ -3601,7 +3617,7 @@ htmlParseCharRef(htmlParserCtxtPtr ctxt) {
+ 		     NULL, NULL);
+         return(0);
+     }
+-    if ((CUR == '&') && (NXT(1) == '#') &&
++    if ((CUR == '&') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '#') &&
+         ((NXT(2) == 'x') || NXT(2) == 'X')) {
+ 	SKIP(3);
+ 	while (CUR != ';') {
+@@ -3624,7 +3640,7 @@ htmlParseCharRef(htmlParserCtxtPtr ctxt) {
+ 	}
+ 	if (CUR == ';')
+ 	    NEXT;
+-    } else if  ((CUR == '&') && (NXT(1) == '#')) {
++    } else if  ((CUR == '&') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '#')) {
+ 	SKIP(2);
+ 	while (CUR != ';') {
+ 	    if ((CUR >= '0') && (CUR <= '9')) {
+@@ -4046,7 +4062,7 @@ htmlParseStartTag(htmlParserCtxtPtr ctxt) {
+     SKIP_BLANKS;
+     while ((CUR != 0) &&
+            (CUR != '>') &&
+-	   ((CUR != '/') || (NXT(1) != '>')) &&
++	   ((CUR != '/') || (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) != '>')) &&
+            (ctxt->instate != XML_PARSER_EOF)) {
+ 	GROW;
+ 	attname = htmlParseAttribute(ctxt, &attvalue);
+@@ -4108,7 +4124,7 @@ htmlParseStartTag(htmlParserCtxtPtr ctxt) {
+ 	     * the end of the tag. */
+ 	    while ((CUR != 0) &&
+ 	           !(IS_BLANK_CH(CUR)) && (CUR != '>') &&
+-		   ((CUR != '/') || (NXT(1) != '>')) &&
++		   ((CUR != '/') || (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) != '>')) &&
+                    (ctxt->instate != XML_PARSER_EOF))
+ 		NEXT;
+ 	}
+@@ -4168,7 +4184,7 @@ htmlParseEndTag(htmlParserCtxtPtr ctxt)
+     const xmlChar *oldname;
+     int i, ret;
+ 
+-    if ((CUR != '<') || (NXT(1) != '/')) {
++    if ((CUR != '<') || (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) != '/')) {
+         htmlParseErr(ctxt, XML_ERR_LTSLASH_REQUIRED,
+ 	             "htmlParseEndTag: '</' not found\n", NULL, NULL);
+         return (0);
+@@ -4269,7 +4285,14 @@ htmlParseReference(htmlParserCtxtPtr ctxt) {
+     const xmlChar *name;
+     if (CUR != '&') return;
+ 
+-    if (NXT(1) == '#') {
++    {
++            xmlChar nextch = 0;
++            if ((ctxt->input->cur + 1) >= ctxt->input->end) {
++                GROW;
++            }
++            if ((ctxt->input->cur + 1) < ctxt->input->end)
++                nextch = ctxt->input->cur[1];
++            if (nextch == '#') {
+ 	unsigned int c;
+ 	int bits, i = 0;
+ 
+@@ -4356,7 +4379,7 @@ htmlParseContent(htmlParserCtxtPtr ctxt) {
+ 	/*
+ 	 * Our tag or one of it's parent or children is ending.
+ 	 */
+-        if ((CUR == '<') && (NXT(1) == '/')) {
++        if ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '/')) {
+ 	    if (htmlParseEndTag(ctxt) &&
+ 		((currentNode != NULL) || (ctxt->nameNr == 0))) {
+ 		if (currentNode != NULL)
+@@ -4367,8 +4390,8 @@ htmlParseContent(htmlParserCtxtPtr ctxt) {
+         }
+ 
+ 	else if ((CUR == '<') &&
+-	         ((IS_ASCII_LETTER(NXT(1))) ||
+-		  (NXT(1) == '_') || (NXT(1) == ':'))) {
++	         ((IS_ASCII_LETTER(((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0))) ||
++		  (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '_') || (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == ':'))) {
+ 	    name = htmlParseHTMLName_nonInvasive(ctxt);
+ 	    if (name == NULL) {
+ 	        htmlParseErr(ctxt, XML_ERR_NAME_REQUIRED,
+@@ -4410,7 +4433,7 @@ htmlParseContent(htmlParserCtxtPtr ctxt) {
+ 	    htmlParseScript(ctxt);
+ 	}
+ 
+-        else if ((CUR == '<') && (NXT(1) == '!')) {
++        else if ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '!')) {
+             /*
+              * Sometimes DOCTYPE arrives in the middle of the document
+              */
+@@ -4437,14 +4460,14 @@ htmlParseContent(htmlParserCtxtPtr ctxt) {
+         /*
+          * Second case : a Processing Instruction.
+          */
+-        else if ((CUR == '<') && (NXT(1) == '?')) {
++        else if ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '?')) {
+             htmlParsePI(ctxt);
+         }
+ 
+         /*
+          * Third case :  a sub-element.
+          */
+-        else if ((CUR == '<') && IS_ASCII_LETTER(NXT(1))) {
++        else if ((CUR == '<') && IS_ASCII_LETTER(((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0))) {
+             htmlParseElement(ctxt);
+         }
+         else if (CUR == '<') {
+@@ -4543,7 +4566,7 @@ htmlParseElement(htmlParserCtxtPtr ctxt) {
+     /*
+      * Check for an Empty Element labeled the XML/SGML way
+      */
+-    if ((CUR == '/') && (NXT(1) == '>')) {
++    if ((CUR == '/') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '>')) {
+         SKIP(2);
+ 	if ((ctxt->sax != NULL) && (ctxt->sax->endElement != NULL))
+ 	    ctxt->sax->endElement(ctxt->userData, name);
+@@ -4690,7 +4713,7 @@ htmlParseElementInternal(htmlParserCtxtPtr ctxt) {
+     /*
+      * Check for an Empty Element labeled the XML/SGML way
+      */
+-    if ((CUR == '/') && (NXT(1) == '>')) {
++    if ((CUR == '/') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '>')) {
+         SKIP(2);
+ 	if ((ctxt->sax != NULL) && (ctxt->sax->endElement != NULL))
+ 	    ctxt->sax->endElement(ctxt->userData, name);
+@@ -4765,7 +4788,7 @@ htmlParseContentInternal(htmlParserCtxtPtr ctxt) {
+ 	/*
+ 	 * Our tag or one of it's parent or children is ending.
+ 	 */
+-        if ((CUR == '<') && (NXT(1) == '/')) {
++        if ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '/')) {
+ 	    if (htmlParseEndTag(ctxt) &&
+ 		((currentNode != NULL) || (ctxt->nameNr == 0))) {
+ 		if (currentNode != NULL)
+@@ -4786,8 +4809,8 @@ htmlParseContentInternal(htmlParserCtxtPtr ctxt) {
+         }
+ 
+ 	else if ((CUR == '<') &&
+-	         ((IS_ASCII_LETTER(NXT(1))) ||
+-		  (NXT(1) == '_') || (NXT(1) == ':'))) {
++	         ((IS_ASCII_LETTER(((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0))) ||
++		  (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '_') || (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == ':'))) {
+ 	    name = htmlParseHTMLName_nonInvasive(ctxt);
+ 	    if (name == NULL) {
+ 	        htmlParseErr(ctxt, XML_ERR_NAME_REQUIRED,
+@@ -4845,7 +4868,7 @@ htmlParseContentInternal(htmlParserCtxtPtr ctxt) {
+ 	    htmlParseScript(ctxt);
+ 	}
+ 
+-        else if ((CUR == '<') && (NXT(1) == '!')) {
++        else if ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '!')) {
+             /*
+              * Sometimes DOCTYPE arrives in the middle of the document
+              */
+@@ -4872,14 +4895,14 @@ htmlParseContentInternal(htmlParserCtxtPtr ctxt) {
+         /*
+          * Second case : a Processing Instruction.
+          */
+-        else if ((CUR == '<') && (NXT(1) == '?')) {
++        else if ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '?')) {
+             htmlParsePI(ctxt);
+         }
+ 
+         /*
+          * Third case :  a sub-element.
+          */
+-        else if ((CUR == '<') && IS_ASCII_LETTER(NXT(1))) {
++        else if ((CUR == '<') && IS_ASCII_LETTER(((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0))) {
+             htmlParseElementInternal(ctxt);
+             if (currentNode != NULL) xmlFree(currentNode);
+ 
+@@ -4979,7 +5002,7 @@ htmlParseDocument(htmlParserCtxtPtr ctxt) {
+ 	 * plug some encoding conversion routines.
+ 	 */
+ 	start[0] = RAW;
+-	start[1] = NXT(1);
++	start[1] = ((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0);
+ 	start[2] = NXT(2);
+ 	start[3] = NXT(3);
+ 	enc = xmlDetectCharEncoding(&start[0], 4);
+@@ -5004,9 +5027,9 @@ htmlParseDocument(htmlParserCtxtPtr ctxt) {
+     /*
+      * Parse possible comments and PIs before any content
+      */
+-    while (((CUR == '<') && (NXT(1) == '!') &&
++    while (((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '!') &&
+             (NXT(2) == '-') && (NXT(3) == '-')) ||
+-	   ((CUR == '<') && (NXT(1) == '?'))) {
++	   ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '?'))) {
+         htmlParseComment(ctxt);
+         htmlParsePI(ctxt);
+ 	SKIP_BLANKS;
+@@ -5017,7 +5040,7 @@ htmlParseDocument(htmlParserCtxtPtr ctxt) {
+      * Then possibly doc type declaration(s) and more Misc
+      * (doctypedecl Misc*)?
+      */
+-    if ((CUR == '<') && (NXT(1) == '!') &&
++    if ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '!') &&
+ 	(UPP(2) == 'D') && (UPP(3) == 'O') &&
+ 	(UPP(4) == 'C') && (UPP(5) == 'T') &&
+ 	(UPP(6) == 'Y') && (UPP(7) == 'P') &&
+@@ -5029,9 +5052,9 @@ htmlParseDocument(htmlParserCtxtPtr ctxt) {
+     /*
+      * Parse possible comments and PIs before any content
+      */
+-    while (((CUR == '<') && (NXT(1) == '!') &&
++    while (((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '!') &&
+             (NXT(2) == '-') && (NXT(3) == '-')) ||
+-	   ((CUR == '<') && (NXT(1) == '?'))) {
++	   ((CUR == '<') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '?'))) {
+         htmlParseComment(ctxt);
+         htmlParsePI(ctxt);
+ 	SKIP_BLANKS;
+@@ -5863,7 +5886,7 @@ htmlParseTryOrFinish(htmlParserCtxtPtr ctxt, int terminate) {
+ 		/*
+ 		 * Check for an Empty Element labeled the XML/SGML way
+ 		 */
+-		if ((CUR == '/') && (NXT(1) == '>')) {
++		if ((CUR == '/') && (((ctxt->input->cur + 1 < ctxt->input->end) ? ctxt->input->cur[1] : 0) == '>')) {
+ 		    SKIP(2);
+ 		    if ((ctxt->sax != NULL) && (ctxt->sax->endElement != NULL))
+ 			ctxt->sax->endElement(ctxt->userData, name);

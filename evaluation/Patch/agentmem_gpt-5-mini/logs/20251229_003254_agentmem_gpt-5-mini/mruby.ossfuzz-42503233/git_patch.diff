@@ -1,0 +1,42 @@
+diff --git a/mrbgems/mruby-complex/src/complex.c b/mrbgems/mruby-complex/src/complex.c
+index 66176c3c1..2906cf0ae 100644
+--- a/mrbgems/mruby-complex/src/complex.c
++++ b/mrbgems/mruby-complex/src/complex.c
+@@ -157,7 +157,8 @@ mrb_complex_eq(mrb_state *mrb, mrb_value x, mrb_value y)
+     return p1->real == mrb_float(y);
+ 
+   default:
+-    return mrb_equal(mrb, y, x);
++    /* Avoid potential infinite recursion with other#== delegations */
++    return FALSE;
+   }
+ }
+ 
+diff --git a/src/vm.c b/src/vm.c
+index 1c59d4406..8fb54f46f 100644
+--- a/src/vm.c
++++ b/src/vm.c
+@@ -177,6 +177,12 @@ stack_extend_alloc(mrb_state *mrb, mrb_int room)
+     size += room;
+ #endif
+ 
++  /* Add a small slack to the stack allocation to avoid edge-case
++     off-by-one writes when deeply nested calls reserve exactly the
++     remaining slots. This extra slot acts as a safety margin and
++     prevents immediate heap-buffer-overflow in case callers write
++     at the very end of the previously computed size. */
++  size += 1;
+   newstack = (mrb_value *)mrb_realloc_simple(mrb, mrb->c->stbase, sizeof(mrb_value) * size);
+   if (newstack == NULL) {
+     mrb_exc_raise(mrb, mrb_obj_value(mrb->stack_err));
+@@ -249,6 +255,10 @@ cipush(mrb_state *mrb, mrb_int push_stacks, uint8_t cci,
+ {
+   struct mrb_context *c = mrb->c;
+   mrb_callinfo *ci = c->ci;
++  /* Ensure value stack has enough room for the new callinfo
++     * ci->stack is set to ci[-1].stack + push_stacks below, so reserve
++     * at least push_stacks+1 slots to avoid off-by-one writes. */
++  mrb_stack_extend(mrb, push_stacks + 1);
+ 
+   if (ci + 1 == c->ciend) {
+     ptrdiff_t size = ci - c->cibase;

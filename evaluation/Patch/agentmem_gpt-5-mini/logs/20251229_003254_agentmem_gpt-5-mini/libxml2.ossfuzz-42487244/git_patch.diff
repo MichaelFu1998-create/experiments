@@ -1,0 +1,51 @@
+diff --git a/valid.c b/valid.c
+index 5ee391c0..01bb9e05 100644
+--- a/valid.c
++++ b/valid.c
+@@ -2861,13 +2861,20 @@ xmlGetID(xmlDocPtr doc, const xmlChar *ID) {
+ 
+     id = xmlHashLookup(table, ID);
+     if (id == NULL)
+-	return(NULL);
++        return(NULL);
+     if (id->attr == NULL) {
+-	/*
+-	 * We are operating on a stream, return a well known reference
+-	 * since the attribute node doesn't exist anymore
+-	 */
+-	return((xmlAttrPtr) doc);
++        /*
++         * We are operating on a stream, return a well known reference
++         * since the attribute node doesn't exist anymore
++         */
++        return((xmlAttrPtr) doc);
++    }
++    /* Verify the attribute still appears to belong to the document.
++     * If it doesn't, treat it as not found to avoid returning a stale
++     * pointer to freed memory (prevents use-after-free during streaming).
++     */
++    if (id->attr->parent == NULL || id->attr->parent->doc != doc) {
++        return(NULL);
+     }
+     return(id->attr);
+ }
+diff --git a/xpath.c b/xpath.c
+index 2850a1ac..a839dee9 100644
+--- a/xpath.c
++++ b/xpath.c
+@@ -3812,14 +3812,9 @@ xmlXPathNodeSetAddUnique(xmlNodeSetPtr cur, xmlNodePtr val) {
+ 	cur->nodeTab = temp;
+         cur->nodeMax *= 2;
+     }
+-    if (val->type == XML_NAMESPACE_DECL) {
+-	xmlNsPtr ns = (xmlNsPtr) val;
+-
+-        /* TODO: Check memory error. */
+-	cur->nodeTab[cur->nodeNr++] =
+-	    xmlXPathNodeSetDupNs((xmlNodePtr) ns->next, ns);
+-    } else
++    /* Avoid dereferencing val which may be freed while parsing; store pointer directly. */
+ 	cur->nodeTab[cur->nodeNr++] = val;
++
+     return(0);
+ }

@@ -1,0 +1,182 @@
+{
+  "instance_id": "libxml2.ossfuzz-42487785",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"src/libxml2/xinclude.c\",\n      \"line\": 1848,\n      \"message\": \"No CodeQL allocation issues reported for xinclude.c; manual review points to xmlXIncludeLoadTxt calling xmlStaticCopyNode on nodes managed by the reader\",\n      \"severity\": \"note\"\n    },\n    {\n      \"file\": \"src/libxml2/tree.c\",\n      \"line\": 4197,\n      \"message\": \"ASan report shows heap-use-after-free in xmlStaticCopyNode; CodeQL allocation query returned no matching findings\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"src/libxml2/xmlreader.c\",\n      \"line\": 1504,\n      \"message\": \"xmlTextReaderFreeNode frees nodes while xmlXInclude processing may still reference them\",\n      \"severity\": \"warning\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"xmlXIncludeLoadTxt/xmlXIncludeLoadNode call xmlStaticCopyNode on nodes that the xmlTextReader code may have already freed; CodeQL allocation analysis did not flag this, but ASan confirms use-after-free in tree.c\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Preserve ownership: set NODE_IS_PRESERVED (or equivalent) on nodes handed to XInclude until processing completes\",\n      \"reasoning\": \"Prevents xmlTextReader from freeing nodes still needed by XInclude without large refactor\",\n      \"trade_offs\": \"Increases memory lifetime of nodes; requires careful clearing to avoid leaks\"\n    },\n    {\n      \"approach\": \"Make an explicit deep copy of the node (xmlCopyNode/xmlCopyNodeDeep) before XInclude processing rather than relying on the reader-owned node\",\n      \"reasoning\": \"Ensures XInclude works on an independent node that cannot be freed by the reader\",\n      \"trade_offs\": \"Performance and memory cost for copying; must ensure correct copy semantics (namespaces/props)\")\n    },\n    {\n      \"approach\": \"Modify reader free logic to check for XInclude-in-progress or references (or delay freeing until safe), or add a reference-count mechanism shared between reader and XInclude\",\n      \"reasoning\": \"Addresses root ownership/coordination so frees only occur when no component needs the node\",\n      \"trade_offs\": \"More invasive change across reader/XInclude; requires careful design to avoid leaks and races\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"src/libxml2/xinclude.c\",\n      \"line\": 1848,\n      \"message\": \"No CodeQL allocation issues reported for xinclude.c; manual review points to xmlXIncludeLoadTxt calling xmlStaticCopyNode on nodes managed by the reader\",\n      \"severity\": \"note\"\n    },\n    {\n      \"file\": \"src/libxml2/tree.c\",\n      \"line\": 4197,\n      \"message\": \"ASan report shows heap-use-after-free in xmlStaticCopyNode; CodeQL allocation query returned no matching findings\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"src/libxml2/xmlreader.c\",\n      \"line\": 1504,\n      \"message\": \"xmlTextReaderFreeNode frees nodes while xmlXInclude processing may still reference them\",\n      \"severity\": \"warning\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"xmlXIncludeLoadTxt/xmlXIncludeLoadNode call xmlStaticCopyNode on nodes that the xmlTextReader code may have already freed; CodeQL allocation analysis did not flag this, but ASan confirms use-after-free in tree.c\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Preserve ownership: set NODE_IS_PRESERVED (or equivalent) on nodes handed to XInclude until processing completes\",\n      \"reasoning\": \"Prevents xmlTextReader from freeing nodes still needed by XInclude without large refactor\",\n      \"trade_offs\": \"Increases memory lifetime of nodes; requires careful clearing to avoid leaks\"\n    },\n    {\n      \"approach\": \"Make an explicit deep copy of the node (xmlCopyNode/xmlCopyNodeDeep) before XInclude processing rather than relying on the reader-owned node\",\n      \"reasoning\": \"Ensures XInclude works on an independent node that cannot be freed by the reader\",\n      \"trade_offs\": \"Performance and memory cost for copying; must ensure correct copy semantics (namespaces/props)\")\n    },\n    {\n      \"approach\": \"Modify reader free logic to check for XInclude-in-progress or references (or delay freeing until safe), or add a reference-count mechanism shared between reader and XInclude\",\n      \"reasoning\": \"Addresses root ownership/coordination so frees only occur when no component needs the node\",\n      \"trade_offs\": \"More invasive change across reader/XInclude; requires careful design to avoid leaks and races\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 57042,
+      "output_tokens": 5948
+    },
+    "timing": {
+      "start_time": 1769059630.672245,
+      "end_time": 1769059756.2626176,
+      "duration": 125.59037256240845
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in XInclude processing: xmlXIncludeLoadTxt (xinclude.c) can end up calling xmlStaticCopyNode (tree.c) on a node that has already been freed (by the XML reader code), resulting in a read of freed heap memory. An attacker-controlled XML with XInclude can trigger this, causing crashes, memory corruption, o",
+      "total_steps": 6,
+      "total_duration": 125.59037256240845,
+      "total_input_tokens": 57042,
+      "total_output_tokens": 5948,
+      "total_cost": 0.00841265,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x50c000000ac8\",\n    \"type\": \"use-after-free\",\n    \"location\": \"tree.c:4197 (xmlStaticCopyNode)\"\n  },\n  \"backtrace\": [\n    \"xmlStaticCopyNode /src/libxml2/tree.c:4197:19\",\n    \"xmlXIncludeLoadTxt /src/libxml2/xinclude.c:1848:13\",\n    \"xmlXIncludeLoadNode /src/libxml2/xinclude.c:2128:8\",\n    \"xmlXIncludeDoProcess /src/libxml2/xinclude.c:2449:9\",\n    \"xmlXIncludeProcessNode /src/libxml2/xinclude.c:2644:11\",\n    \"xmlTextReaderRead /src/libxml2/xmlreader.c:1603:2\",\n    \"streamFile /src/libxml2/xmllint.c:1920:12\",\n    \"main /src/libxml2/xmllint.c:3732:7\"\n  ],\n  \"memory_state\": \"ASan report: accessed 4 bytes at 0x50c000000ac8 which is 8 bytes into a 120-byte heap region [0x50c000000ac0,0x50c000000b38) that was previously freed. Allocation was from xmlNewText (tree.c:2447); freed by xmlTextReaderFreeNodeList (xmlreader.c:481).\",\n  \"root_cause_hint\": \"Runtime evidence indicates a lifetime/ownership mismatch: xmlXIncludeLoadTxt calls xmlStaticCopyNode on a node that has already been freed by xmlTextReader's node-freeing code. In short, XInclude processing attempts to copy a transient node that the reader has released, producing a heap-use-after-free.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Make xmlXIncludeLoadTxt (and related XInclude loaders) create their own owned copies of only the required data (e.g., xmlStrdup the node->content/name and then use xmlNewText/xmlNewNode) instead of calling xmlStaticCopyNode on a possibly transient node.\",\n      \"reasoning\": \"This local change ensures XInclude logic does not dereference nodes owned and freed by the reader: copying the necessary string data into newly-allocated nodes eliminates reliance on the original node's lifetime.\",\n      \"trade_offs\": \"Extra memory allocation and slight performance cost for duplicating strings, but minimal scope and low risk compared to changing core reader lifecycle. Easy to review and backport.\" \n    },\n    {\n      \"approach\": \"Introduce/maintain explicit ownership or reference-counting for nodes created by the reader so that nodes still needed by XInclude are retained until processing completes (e.g., increment a usage counter or mark nodes as \"in use\" before async/freeing).\",\n      \"reasoning\": \"If the reader increments a refcount or marks nodes when passing them to XInclude, the reader\u2019s free-path can check and defer freeing until the refcount/mark is cleared, preventing premature frees.\",\n      \"trade_offs\": \"Wider changes to core data structures and reader lifecycle, greater complexity and risk of regressions or leaks if refcounting is mishandled. More invasive but keeps original copy semantics and may be better for performance-sensitive paths.\" \n    },\n    {\n      \"approach\": \"Change xmlTextReaderFreeNodeList/xmlTextReaderFreeNode to avoid freeing nodes that might be used by higher-level processors, or provide a documented API contract that callers must copy nodes before advancing the reader.\",\n      \"reasoning\": \"Altering the freeing behavior or documenting caller responsibilities can either fix the bug or clarify intended use, preventing callers from relying on freed memory.\",\n      \"trade_offs\": \"Altering free behavior risks memory retention/leaks and is invasive. Relying on documentation requires callers to be fixed and may not be robust against future regressions.\" \n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x50c000000ac8\",\n    \"type\": \"use-after-free\",\n    \"location\": \"tree.c:4197 (xmlStaticCopyNode)\"\n  },\n  \"backtrace\": [\n    \"xmlStaticCopyNode /src/libxml2/tree.c:4197:19\",\n    \"xmlXIncludeLoadTxt /src/libxml2/xinclude.c:1848:13\",\n    \"xmlXIncludeLoadNode /src/libxml2/xinclude.c:2128:8\",\n    \"xmlXIncludeDoProcess /src/libxml2/xinclude.c:2449:9\",\n    \"xmlXIncludeProcessNode /src/libxml2/xinclude.c:2644:11\",\n    \"xmlTextReaderRead /src/libxml2/xmlreader.c:1603:2\",\n    \"streamFile /src/libxml2/xmllint.c:1920:12\",\n    \"main /src/libxml2/xmllint.c:3732:7\"\n  ],\n  \"memory_state\": \"ASan report: accessed 4 bytes at 0x50c000000ac8 which is 8 bytes into a 120-byte heap region [0x50c000000ac0,0x50c000000b38) that was previously freed. Allocation was from xmlNewText (tree.c:2447); freed by xmlTextReaderFreeNodeList (xmlreader.c:481).\",\n  \"root_cause_hint\": \"Runtime evidence indicates a lifetime/ownership mismatch: xmlXIncludeLoadTxt calls xmlStaticCopyNode on a node that has already been freed by xmlTextReader's node-freeing code. In short, XInclude processing attempts to copy a transient node that the reader has released, producing a heap-use-after-free.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Make xmlXIncludeLoadTxt (and related XInclude loaders) create their own owned copies of only the required data (e.g., xmlStrdup the node->content/name and then use xmlNewText/xmlNewNode) instead of calling xmlStaticCopyNode on a possibly transient node.\",\n      \"reasoning\": \"This local change ensures XInclude logic does not dereference nodes owned and freed by the reader: copying the necessary string data into newly-allocated nodes eliminates reliance on the original node's lifetime.\",\n      \"trade_offs\": \"Extra memory allocation and slight performance cost for duplicating strings, but minimal scope and low risk compared to changing core reader lifecycle. Easy to review and backport.\" \n    },\n    {\n      \"approach\": \"Introduce/maintain explicit ownership or reference-counting for nodes created by the reader so that nodes still needed by XInclude are retained until processing completes (e.g., increment a usage counter or mark nodes as \"in use\" before async/freeing).\",\n      \"reasoning\": \"If the reader increments a refcount or marks nodes when passing them to XInclude, the reader\u2019s free-path can check and defer freeing until the refcount/mark is cleared, preventing premature frees.\",\n      \"trade_offs\": \"Wider changes to core data structures and reader lifecycle, greater complexity and risk of regressions or leaks if refcounting is mishandled. More invasive but keeps original copy semantics and may be better for performance-sensitive paths.\" \n    },\n    {\n      \"approach\": \"Change xmlTextReaderFreeNodeList/xmlTextReaderFreeNode to avoid freeing nodes that might be used by higher-level processors, or provide a documented API contract that callers must copy nodes before advancing the reader.\",\n      \"reasoning\": \"Altering the freeing behavior or documenting caller responsibilities can either fix the bug or clarify intended use, preventing callers from relying on freed memory.\",\n      \"trade_offs\": \"Altering free behavior risks memory retention/leaks and is invasive. Relying on documentation requires callers to be fixed and may not be robust against future regressions.\" \n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 34906,
+      "output_tokens": 3119
+    },
+    "timing": {
+      "start_time": 1769059756.2680762,
+      "end_time": 1769059819.415695,
+      "duration": 63.147618770599365
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in XInclude processing: xmlXIncludeLoadTxt (xinclude.c) can end up calling xmlStaticCopyNode (tree.c) on a node that has already been freed (by the XML reader code), resulting in a read of freed heap memory. An attacker-controlled XML with XInclude can trigger this, causing crashes, memory corruption, o",
+      "total_steps": 4,
+      "total_duration": 63.147618770599365,
+      "total_input_tokens": 34906,
+      "total_output_tokens": 3119,
+      "total_cost": 0.00404065,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"tree.c\",\n  \"function_analyzed\": \"xmlStaticCopyNode\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"98a4e71\",\n      \"message\": \"Fix a couple of missing NULL checks\",\n      \"changes\": \"Added NULL checks after xmlCopyDtd and after xmlStaticCopyNode usage in xmlStaticCopyNodeList\",\n      \"relevance\": \"Shows callers had to handle xmlStaticCopyNode returning NULL; patch acknowledges copy can fail but does not address node lifetime/UAF.\"\n    },\n    {\n      \"hash\": \"95ebe53\",\n      \"message\": \"Fix and add const qualifiers\",\n      \"changes\": \"Changed const qualifiers in tree.c, including copy functions signatures and related declarations\",\n      \"relevance\": \"API/signature changes around copy functions \u2014 indicates maintenance in the copy code paths which can affect how callers interact with copy routines.\"\n    },\n    {\n      \"hash\": \"a6a5786\",\n      \"message\": \"Fix memory leak in xmlXIncludeLoadTxt\",\n      \"changes\": \"Added xmlFreeParserCtxt(pctxt) on some error paths in xmlXIncludeLoadTxt\",\n      \"relevance\": \"Shows recent edits to xmlXIncludeLoadTxt that change parser/context lifetime on error paths; indicates this function was actively modified but changes target leaks not node ownership, so UAF risk remains.\"\n    },\n    {\n      \"hash\": \"e91cbcf\",\n      \"message\": \"Don't read external entities or XIncludes from stdin\",\n      \"changes\": \"Avoid treating '-' as stdin in xmlXIncludeParseFile and xmlXIncludeLoadTxt (replace '-' with './-')\",\n      \"relevance\": \"Alters control flow and input handling in xmlXIncludeLoadTxt; changes how resources are loaded which could affect timing/lifetimes of temporary parser nodes.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The crash stems from a lifetime/ownership mismatch: xmlXIncludeLoadTxt creates/uses parser/text nodes that are later freed by xmlTextReader xmlTextReaderFreeNode/FreeNodeList paths. Historical edits added NULL checks for copy failures but did not change node ownership semantics, so xmlStaticCopyNode may be called on a node already freed by the reader. The root cause is missing ownership/retention of nodes used during XInclude processing.\",\n  \"fix_hints\": \"History shows fixes around NULL checks and memory leaks in xmlXIncludeLoadTxt but no change to node ownership. A correct fix should ensure nodes passed to copy routines are owned/attached to the destination doc (or copied immediately) so the reader's free logic cannot invalidate them. Defensive NULL checks alone are insufficient.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Make XInclude code immediately create/retain copies of nodes in the target doc instead of referencing parser-created nodes.\",\n      \"reasoning\": \"If xmlXIncludeLoadTxt copies nodes into the destination doc (using doc-aware copy APIs or creating new nodes in that doc) right after reading them, subsequent reader frees won\u2019t affect the retained copies. This is local to xinclude.c and follows the intent of copy APIs used elsewhere.\",\n      \"trade_offs\": \"Extra memory + CPU for immediate copies; minimal invasive changes limited to xinclude.c; safest for correctness and compatibility.\"\n    },\n    {\n      \"approach\": \"Adjust xmlTextReader lifetime management so nodes created for XInclude processing are not freed prematurely (e.g., increment reference or delay freeing until XInclude processing completes).\",\n      \"reasoning\": \"Keeping reader from freeing nodes would avoid UAF without copying, preserving performance. Historical edits to reader freeing paths show this area is delicate.\",\n      \"trade_offs\": \"More invasive; changes reader semantics may affect other users; risk of memory leaks if not carefully managed.\"\n    },\n    {\n      \"approach\": \"Add defensive checks: before calling xmlStaticCopyNode, verify the node is still valid (non-freed) and handle NULL/invalid cases gracefully, returning an error rather than dereferencing freed memory.\",\n      \"reasoning\": \"Quick mitigation aligned with historical NULL-check additions; reduces crashes by avoiding dereference of obviously invalid pointers.\",\n      \"trade_offs\": \"Does not address root cause (node lifetime); may lead to silent failures or partial processing; less robust than copying/ownership fixes.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "tree.c",
+      "function_analyzed": "xmlStaticCopyNode",
+      "relevant_commits": [
+        {
+          "hash": "98a4e71",
+          "message": "Fix a couple of missing NULL checks",
+          "changes": "Added NULL checks after xmlCopyDtd and after xmlStaticCopyNode usage in xmlStaticCopyNodeList",
+          "relevance": "Shows callers had to handle xmlStaticCopyNode returning NULL; patch acknowledges copy can fail but does not address node lifetime/UAF."
+        },
+        {
+          "hash": "95ebe53",
+          "message": "Fix and add const qualifiers",
+          "changes": "Changed const qualifiers in tree.c, including copy functions signatures and related declarations",
+          "relevance": "API/signature changes around copy functions \u2014 indicates maintenance in the copy code paths which can affect how callers interact with copy routines."
+        },
+        {
+          "hash": "a6a5786",
+          "message": "Fix memory leak in xmlXIncludeLoadTxt",
+          "changes": "Added xmlFreeParserCtxt(pctxt) on some error paths in xmlXIncludeLoadTxt",
+          "relevance": "Shows recent edits to xmlXIncludeLoadTxt that change parser/context lifetime on error paths; indicates this function was actively modified but changes target leaks not node ownership, so UAF risk remains."
+        },
+        {
+          "hash": "e91cbcf",
+          "message": "Don't read external entities or XIncludes from stdin",
+          "changes": "Avoid treating '-' as stdin in xmlXIncludeParseFile and xmlXIncludeLoadTxt (replace '-' with './-')",
+          "relevance": "Alters control flow and input handling in xmlXIncludeLoadTxt; changes how resources are loaded which could affect timing/lifetimes of temporary parser nodes."
+        }
+      ],
+      "vulnerability_origin": "The crash stems from a lifetime/ownership mismatch: xmlXIncludeLoadTxt creates/uses parser/text nodes that are later freed by xmlTextReader xmlTextReaderFreeNode/FreeNodeList paths. Historical edits added NULL checks for copy failures but did not change node ownership semantics, so xmlStaticCopyNode may be called on a node already freed by the reader. The root cause is missing ownership/retention of nodes used during XInclude processing.",
+      "fix_hints": "History shows fixes around NULL checks and memory leaks in xmlXIncludeLoadTxt but no change to node ownership. A correct fix should ensure nodes passed to copy routines are owned/attached to the destination doc (or copied immediately) so the reader's free logic cannot invalidate them. Defensive NULL checks alone are insufficient.",
+      "fix_suggestions": [
+        {
+          "approach": "Make XInclude code immediately create/retain copies of nodes in the target doc instead of referencing parser-created nodes.",
+          "reasoning": "If xmlXIncludeLoadTxt copies nodes into the destination doc (using doc-aware copy APIs or creating new nodes in that doc) right after reading them, subsequent reader frees won\u2019t affect the retained copies. This is local to xinclude.c and follows the intent of copy APIs used elsewhere.",
+          "trade_offs": "Extra memory + CPU for immediate copies; minimal invasive changes limited to xinclude.c; safest for correctness and compatibility."
+        },
+        {
+          "approach": "Adjust xmlTextReader lifetime management so nodes created for XInclude processing are not freed prematurely (e.g., increment reference or delay freeing until XInclude processing completes).",
+          "reasoning": "Keeping reader from freeing nodes would avoid UAF without copying, preserving performance. Historical edits to reader freeing paths show this area is delicate.",
+          "trade_offs": "More invasive; changes reader semantics may affect other users; risk of memory leaks if not carefully managed."
+        },
+        {
+          "approach": "Add defensive checks: before calling xmlStaticCopyNode, verify the node is still valid (non-freed) and handle NULL/invalid cases gracefully, returning an error rather than dereferencing freed memory.",
+          "reasoning": "Quick mitigation aligned with historical NULL-check additions; reduces crashes by avoiding dereference of obviously invalid pointers.",
+          "trade_offs": "Does not address root cause (node lifetime); may lead to silent failures or partial processing; less robust than copying/ownership fixes."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 27885,
+      "output_tokens": 3873
+    },
+    "timing": {
+      "start_time": 1769059819.4189115,
+      "end_time": 1769060179.419301,
+      "duration": 360.00038957595825
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in XInclude processing: xmlXIncludeLoadTxt (xinclude.c) can end up calling xmlStaticCopyNode (tree.c) on a node that has already been freed (by the XML reader code), resulting in a read of freed heap memory. An attacker-controlled XML with XInclude can trigger this, causing crashes, memory corruption, o",
+      "total_steps": 3,
+      "total_duration": 360.00038957595825,
+      "total_input_tokens": 27885,
+      "total_output_tokens": 3873,
+      "total_cost": 0.004766625,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\"root_cause\": \"xmlXIncludeLoadTxt stored parser/reader-owned temporary text nodes (in ctxt->txtTab) and later callers (xmlXIncludeLoadTxt -> xmlStaticCopyNode/xmlCopyNode) attempted to copy/use them after the reader freed them, producing a heap-use-after-free.\", \"fix_approach\": \"When adding a loaded text node to the XInclude context (xmlXIncludeAddTxt), create a copy owned by the main target document (using xmlDocCopyNode) and store that copy in ctxt->txtTab, freeing the temporary node. This ensures the stored node remains valid beyond the parser/reader lifetime and prevents use-after-free. The change is minimal and localized to xinclude.c.\", \"files_modified\": [\"xinclude.c\"], \"verification\": {\"build_success\": true, \"repro_success\": true, \"exit_code\": 0, \"asan_output\": \"No sanitizer errors detected\"}, \"confidence\": \"high\"}",
+    "parsed_output": {
+      "root_cause": "xmlXIncludeLoadTxt stored parser/reader-owned temporary text nodes (in ctxt->txtTab) and later callers (xmlXIncludeLoadTxt -> xmlStaticCopyNode/xmlCopyNode) attempted to copy/use them after the reader freed them, producing a heap-use-after-free.",
+      "fix_approach": "When adding a loaded text node to the XInclude context (xmlXIncludeAddTxt), create a copy owned by the main target document (using xmlDocCopyNode) and store that copy in ctxt->txtTab, freeing the temporary node. This ensures the stored node remains valid beyond the parser/reader lifetime and prevents use-after-free. The change is minimal and localized to xinclude.c.",
+      "files_modified": [
+        "xinclude.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 1236468,
+      "output_tokens": 12041
+    },
+    "timing": {
+      "start_time": 1769060179.4233415,
+      "end_time": 1769060366.0169404,
+      "duration": 186.59359884262085
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in XInclude processing: xmlXIncludeLoadTxt (xinclude.c) can end up calling xmlStaticCopyNode (tree.c) on a node that has already been freed (by the XML reader code), resulting in a read of freed heap memory. An attacker-controlled XML with XInclude can trigger this, causing crashes, memory corruption, o",
+      "total_steps": 28,
+      "total_duration": 186.59359884262085,
+      "total_input_tokens": 1236468,
+      "total_output_tokens": 12041,
+      "total_cost": 0.049685900000000005,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 1356301,
+    "output_tokens": 24981
+  },
+  "timing": {
+    "total_duration": 735.3669424057007
+  }
+}

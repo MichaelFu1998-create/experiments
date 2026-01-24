@@ -1,0 +1,52 @@
+diff --git a/xmlreader.c b/xmlreader.c
+index d96a2ebc..7c888e57 100644
+--- a/xmlreader.c
++++ b/xmlreader.c
+@@ -314,7 +314,22 @@ xmlTextReaderFreeNodeList(xmlTextReaderPtr reader, xmlNodePtr cur) {
+ 	         (cur->type == XML_XINCLUDE_START) ||
+ 		 (cur->type == XML_XINCLUDE_END)) &&
+ 		(cur->nsDef != NULL))
+-		xmlFreeNsList(cur->nsDef);
++		if ((reader != NULL) && (cur->doc != NULL)) {
++            /*
++             * During xmlTextReader parsing the node namespaces may be
++             * referenced elsewhere (for instance during a node copy).
++             * To avoid use-after-free we move the namespace list into
++             * the document's oldNs storage so it will be freed with
++             * the document.
++             */
++            xmlNsPtr tail = cur->nsDef;
++            while (tail->next != NULL) tail = tail->next;
++            tail->next = cur->doc->oldNs;
++            cur->doc->oldNs = cur->nsDef;
++            cur->nsDef = NULL;
++        } else {
++            xmlFreeNsList(cur->nsDef);
++        }
+ 
+ 	    /*
+ 	     * we don't free element names here they are interned now
+@@ -401,7 +416,22 @@ xmlTextReaderFreeNode(xmlTextReaderPtr reader, xmlNodePtr cur) {
+ 	 (cur->type == XML_XINCLUDE_START) ||
+ 	 (cur->type == XML_XINCLUDE_END)) &&
+ 	(cur->nsDef != NULL))
+-	xmlFreeNsList(cur->nsDef);
++	if ((reader != NULL) && (cur->doc != NULL)) {
++            /*
++             * During xmlTextReader parsing the node namespaces may be
++             * referenced elsewhere (for instance during a node copy).
++             * To avoid use-after-free we move the namespace list into
++             * the document's oldNs storage so it will be freed with
++             * the document.
++             */
++            xmlNsPtr tail = cur->nsDef;
++            while (tail->next != NULL) tail = tail->next;
++            tail->next = cur->doc->oldNs;
++            cur->doc->oldNs = cur->nsDef;
++            cur->nsDef = NULL;
++        } else {
++            xmlFreeNsList(cur->nsDef);
++        }
+ 
+     /*
+      * we don't free names here they are interned now

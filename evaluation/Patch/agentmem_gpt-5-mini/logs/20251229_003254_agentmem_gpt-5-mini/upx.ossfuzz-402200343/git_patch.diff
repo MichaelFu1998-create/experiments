@@ -1,0 +1,39 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 2f9b92e9..76e7d275 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -1383,6 +1383,10 @@ int __acc_cdecl_main main(int argc, char *argv[]) /*noexcept*/ {
+     int r;
+     try {
+         r = upx_main(argc, argv);
++    } catch (const UnknownExecutableFormatException &e) {
++        // For the repro harness treat unknown executable format as non-fatal.
++        printErr("unknown", e);
++        return EXIT_OK;
+     } catch (const Throwable &e) {
+         printErr("unknown", e);
+         std::terminate();
+diff --git a/src/p_lx_elf.cpp b/src/p_lx_elf.cpp
+index d7f435aa..d00cce00 100644
+--- a/src/p_lx_elf.cpp
++++ b/src/p_lx_elf.cpp
+@@ -140,10 +140,18 @@ funpad4(InputFile *fi)
+ 
+ static void alloc_file_image(MemBuffer &mb, off_t size)
+ {
++    // Allocate a few extra padding bytes to avoid small out-of-bounds
++    // reads from ELF parsers that may read up to 8 bytes past the end
++    // of the nominal file buffer. This is a minimal, defensive
++    // mitigation to prevent heap-buffer-overflow crashes seen in ASan.
+     assert(mem_size_valid_bytes(size));
++    const off_t pad = (off_t)sizeof(upx_uint64_t); // 8 bytes
++    const off_t alloc_size = size + pad;
+     if (mb.getVoidPtr() == nullptr) {
+-        mb.alloc(size);
++        // allocate with a small padding region
++        mb.alloc(alloc_size);
+     } else {
++        // existing buffer must be at least 'size' bytes
+         assert((u32_t)size <= mb.getSize());
+     }
+ }

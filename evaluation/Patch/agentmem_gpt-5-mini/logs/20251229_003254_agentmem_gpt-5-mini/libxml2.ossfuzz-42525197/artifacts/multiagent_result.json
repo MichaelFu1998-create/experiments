@@ -1,0 +1,250 @@
+{
+  "instance_id": "libxml2.ossfuzz-42525197",
+  "final_status": "failed",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\"analysis_type\":\"memory\",\"findings\":[{\"file\":\"/src/libxml2/dict.c\",\"line\":441,\"message\":\"CodeQL: suspicious array access with potentially unsafe index in xmlDictComputeFastKey (possible read past string terminator)\",\"severity\":\"error\"},{\"file\":\"/src/libxml2/parser.c\",\"line\":9739,\"message\":\"CodeQL: suspicious array access in parser.c (multiple sites flagged in NCName/QName parsing paths)\",\"severity\":\"warning\"}],\"dataflow_summary\":\"\",\"key_insight\":\"Static analysis and ASan trace converge: xmlDictComputeFastKey in dict.c performs an unchecked byte access that can read one byte past a string literal (null terminator), exposing adjacent global data (e.g. xmlIsPubidChar_tab). This is triggered during NCName/QName parsing in parser.c when dict lookup is called on short/global strings.\",\"fix_suggestions\":[{\"approach\":\"Add explicit bounds checks in xmlDictComputeFastKey (avoid reading s[i+1] without confirming s[i+1] is inside string) or accept a length parameter and use it when computing the fast key.\",\"reasoning\":\"Preventing any read past the null terminator at the source removes the out-of-bounds access regardless of caller behavior.\",\"trade_offs\":\"Small CPU cost for computing/propagating lengths or extra checks; minimal code change localized to dict.c.\"},{\"approach\":\"Make callers (xmlParseNCName/xmlParseQName) pass an explicit length or intern the parsed name into a buffer guaranteed to be null-terminated and padded before calling dict lookup.\",\"reasoning\":\"Ensures dict functions operate on well-formed inputs; places validation at parsing boundary where lengths are known.\",\"trade_offs\":\"Requires changes at multiple parser call sites; risk of regressions if callers are missed.\"},{\"approach\":\"Change xmlDictLookup/compute to use safe string helpers (strnlen/portable safe read) and avoid relying on adjacent global layout.\" ,\"reasoning\":\"A defensive-library approach reduces future similar bugs by eliminating assumptions about surrounding memory layout.\",\"trade_offs\":\"Adds defensive overhead across dictionary usage; slightly larger patch surface but robust.\"}],\"most_promising_fix\":\"Modify xmlDictComputeFastKey to stop reading s[i+1] without checking the string bounds (or accept/compute a length) \u2014 localized, minimal-risk, and directly removes the root cause of the global-buffer-overflow.\"}",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "/src/libxml2/dict.c",
+          "line": 441,
+          "message": "CodeQL: suspicious array access with potentially unsafe index in xmlDictComputeFastKey (possible read past string terminator)",
+          "severity": "error"
+        },
+        {
+          "file": "/src/libxml2/parser.c",
+          "line": 9739,
+          "message": "CodeQL: suspicious array access in parser.c (multiple sites flagged in NCName/QName parsing paths)",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "",
+      "key_insight": "Static analysis and ASan trace converge: xmlDictComputeFastKey in dict.c performs an unchecked byte access that can read one byte past a string literal (null terminator), exposing adjacent global data (e.g. xmlIsPubidChar_tab). This is triggered during NCName/QName parsing in parser.c when dict lookup is called on short/global strings.",
+      "fix_suggestions": [
+        {
+          "approach": "Add explicit bounds checks in xmlDictComputeFastKey (avoid reading s[i+1] without confirming s[i+1] is inside string) or accept a length parameter and use it when computing the fast key.",
+          "reasoning": "Preventing any read past the null terminator at the source removes the out-of-bounds access regardless of caller behavior.",
+          "trade_offs": "Small CPU cost for computing/propagating lengths or extra checks; minimal code change localized to dict.c."
+        },
+        {
+          "approach": "Make callers (xmlParseNCName/xmlParseQName) pass an explicit length or intern the parsed name into a buffer guaranteed to be null-terminated and padded before calling dict lookup.",
+          "reasoning": "Ensures dict functions operate on well-formed inputs; places validation at parsing boundary where lengths are known.",
+          "trade_offs": "Requires changes at multiple parser call sites; risk of regressions if callers are missed."
+        },
+        {
+          "approach": "Change xmlDictLookup/compute to use safe string helpers (strnlen/portable safe read) and avoid relying on adjacent global layout.",
+          "reasoning": "A defensive-library approach reduces future similar bugs by eliminating assumptions about surrounding memory layout.",
+          "trade_offs": "Adds defensive overhead across dictionary usage; slightly larger patch surface but robust."
+        }
+      ],
+      "most_promising_fix": "Modify xmlDictComputeFastKey to stop reading s[i+1] without checking the string bounds (or accept/compute a length) \u2014 localized, minimal-risk, and directly removes the root cause of the global-buffer-overflow."
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 26001,
+      "output_tokens": 2277
+    },
+    "timing": {
+      "start_time": 1769072139.0549319,
+      "end_time": 1769072193.2964063,
+      "duration": 54.24147439002991
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlDictComputeFastKey / xmlDictLookup (dict.c) when handling NCName/QName parsing (xmlParseNCName / xmlParseQName in parser.c). The code reads one byte past a global string literal into adjacent global data (e.g. the xmlIsPubidChar_tab table), causing an out-of-bounds",
+      "total_steps": 3,
+      "total_duration": 54.24147439002991,
+      "total_input_tokens": 26001,
+      "total_output_tokens": 2277,
+      "total_cost": 0.003914325,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x564b38c380e1\",\n    \"type\": \"global-buffer-overflow\",\n    \"location\": \"/src/libxml2/dict.c:438\"\n  },\n  \"backtrace\": [\n    \"xmlDictComputeFastKey /src/libxml2/dict.c:438:14\",\n    \"xmlDictLookup /src/libxml2/dict.c:860:12\",\n    \"xmlParseNCNameComplex /src/libxml2/parser.c:3210:12\",\n    \"xmlParseNCName /src/libxml2/parser.c:3274:12\",\n    \"xmlParseQName /src/libxml2/parser.c:8557:9\",\n    \"xmlParseStartTag2 /src/libxml2/parser.c:9050:17\",\n    \"xmlParseElementStart /src/libxml2/parser.c:9796:16\",\n    \"xmlParseElement /src/libxml2/parser.c:9731:9\",\n    \"xmlParseDocument /src/libxml2/parser.c:10588:2\",\n    \"xmlDoRead /src/libxml2/parser.c:14613:5\"\n  ],\n  \"memory_state\": \"AddressSanitizer reports a 1-byte read at 0x564b38c380e1 located 0 bytes after a 1-byte global string literal ('.str.10') and 63 bytes before the global table 'xmlIsPubidChar_tab' (size 256). The read is one byte past the string literal into adjacent global data (global-buffer-overflow).\",\n  \"root_cause_hint\": \"The dynamic evidence shows xmlDictComputeFastKey (called from xmlDictLookup during NCName/QName parsing) performs a fast hashing/read that accesses one byte past the end of a NUL-terminated/global string literal or a non-NUL-terminated substring. The code assumes it can read this extra byte (for its fast path) but the pointer points to a minimal-size string literal (size 1) so the next byte is adjacent global data, causing an out-of-bounds read. UBSan run did not reproduce additional UB diagnostics (it failed with memory allocation errors), but ASan provided the concrete global-buffer-overflow backtrace.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Make xmlDictComputeFastKey robust: stop relying on reading bytes beyond the provided string boundary. Add explicit bounds/NUL checks before sampling bytes for the fast hash path, or use a safe hashing routine that works with an explicit length or only reads bytes that are provably within the string.\",\n      \"reasoning\": \"Fixing the function that performs the out-of-bounds access is the most local and robust solution. It prevents any caller from triggering a global read past the string end and avoids relying on surrounding memory layout. The dynamic trace shows the overflow originates in this function, so adding checks here directly addresses the root cause.\",\n      \"trade_offs\": \"May slightly slow down the fast hashing path due to added checks; however, correctness and security are prioritized. Unit tests and benchmarks should verify performance impact.\"\n    },\n    {\n      \"approach\": \"Introduce or use a length-aware dict lookup API (e.g., xmlDictLookupLen) and have callers that pass substring pointers also pass explicit lengths. In xmlDictComputeFastKey, use the provided length to avoid reading past the end.\",\n      \"reasoning\": \"If callers commonly pass substrings or non NUL-terminated buffers, a length-aware API avoids ambiguity and makes behavior explicit, preventing accidental OOB reads. The parser already knows substring bounds when parsing names, so it can supply lengths.\",\n      \"trade_offs\": \"Requires API changes and updates to callers across the codebase. Backwards compatibility must be considered; may require maintaining both APIs during transition.\"\n    },\n    {\n      \"approach\": \"As a defensive but less-preferred fix, ensure strings passed to xmlDictLookup are guaranteed NUL-terminated with at least one extra padding byte (copy into a small temporary buffer when necessary).\",\n      \"reasoning\": \"This avoids changing the dict hashing logic and provides a quick mitigation for callers that may pass minimal-size literals or non-terminated substrings.\",\n      \"trade_offs\": \"Adds allocations/copies in callers (parser), which can increase overhead and complexity. It is a workaround rather than addressing the root cause in the dict hashing code.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan"
+      ],
+      "crash_info": {
+        "address": "0x564b38c380e1",
+        "type": "global-buffer-overflow",
+        "location": "/src/libxml2/dict.c:438"
+      },
+      "backtrace": [
+        "xmlDictComputeFastKey /src/libxml2/dict.c:438:14",
+        "xmlDictLookup /src/libxml2/dict.c:860:12",
+        "xmlParseNCNameComplex /src/libxml2/parser.c:3210:12",
+        "xmlParseNCName /src/libxml2/parser.c:3274:12",
+        "xmlParseQName /src/libxml2/parser.c:8557:9",
+        "xmlParseStartTag2 /src/libxml2/parser.c:9050:17",
+        "xmlParseElementStart /src/libxml2/parser.c:9796:16",
+        "xmlParseElement /src/libxml2/parser.c:9731:9",
+        "xmlParseDocument /src/libxml2/parser.c:10588:2",
+        "xmlDoRead /src/libxml2/parser.c:14613:5"
+      ],
+      "memory_state": "AddressSanitizer reports a 1-byte read at 0x564b38c380e1 located 0 bytes after a 1-byte global string literal ('.str.10') and 63 bytes before the global table 'xmlIsPubidChar_tab' (size 256). The read is one byte past the string literal into adjacent global data (global-buffer-overflow).",
+      "root_cause_hint": "The dynamic evidence shows xmlDictComputeFastKey (called from xmlDictLookup during NCName/QName parsing) performs a fast hashing/read that accesses one byte past the end of a NUL-terminated/global string literal or a non-NUL-terminated substring. The code assumes it can read this extra byte (for its fast path) but the pointer points to a minimal-size string literal (size 1) so the next byte is adjacent global data, causing an out-of-bounds read. UBSan run did not reproduce additional UB diagnostics (it failed with memory allocation errors), but ASan provided the concrete global-buffer-overflow backtrace.",
+      "fix_suggestions": [
+        {
+          "approach": "Make xmlDictComputeFastKey robust: stop relying on reading bytes beyond the provided string boundary. Add explicit bounds/NUL checks before sampling bytes for the fast hash path, or use a safe hashing routine that works with an explicit length or only reads bytes that are provably within the string.",
+          "reasoning": "Fixing the function that performs the out-of-bounds access is the most local and robust solution. It prevents any caller from triggering a global read past the string end and avoids relying on surrounding memory layout. The dynamic trace shows the overflow originates in this function, so adding checks here directly addresses the root cause.",
+          "trade_offs": "May slightly slow down the fast hashing path due to added checks; however, correctness and security are prioritized. Unit tests and benchmarks should verify performance impact."
+        },
+        {
+          "approach": "Introduce or use a length-aware dict lookup API (e.g., xmlDictLookupLen) and have callers that pass substring pointers also pass explicit lengths. In xmlDictComputeFastKey, use the provided length to avoid reading past the end.",
+          "reasoning": "If callers commonly pass substrings or non NUL-terminated buffers, a length-aware API avoids ambiguity and makes behavior explicit, preventing accidental OOB reads. The parser already knows substring bounds when parsing names, so it can supply lengths.",
+          "trade_offs": "Requires API changes and updates to callers across the codebase. Backwards compatibility must be considered; may require maintaining both APIs during transition."
+        },
+        {
+          "approach": "As a defensive but less-preferred fix, ensure strings passed to xmlDictLookup are guaranteed NUL-terminated with at least one extra padding byte (copy into a small temporary buffer when necessary).",
+          "reasoning": "This avoids changing the dict hashing logic and provides a quick mitigation for callers that may pass minimal-size literals or non-terminated substrings.",
+          "trade_offs": "Adds allocations/copies in callers (parser), which can increase overhead and complexity. It is a workaround rather than addressing the root cause in the dict hashing code."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 35258,
+      "output_tokens": 3220
+    },
+    "timing": {
+      "start_time": 1769072193.300785,
+      "end_time": 1769072235.2649307,
+      "duration": 41.96414566040039
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlDictComputeFastKey / xmlDictLookup (dict.c) when handling NCName/QName parsing (xmlParseNCName / xmlParseQName in parser.c). The code reads one byte past a global string literal into adjacent global data (e.g. the xmlIsPubidChar_tab table), causing an out-of-bounds",
+      "total_steps": 4,
+      "total_duration": 41.96414566040039,
+      "total_input_tokens": 35258,
+      "total_output_tokens": 3220,
+      "total_cost": 0.00411365,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"/src/libxml2/dict.c\",\n  \"function_analyzed\": \"xmlDictComputeFastKey\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"d2c329a\",\n      \"message\": \"Fix -Wimplicit-fallthrough warnings\",\n      \"changes\": \"Added explicit /* Falls through. */ comments to the switch cases in xmlDictComputeFastKey and xmlDictComputeFastQKey to silence -Wimplicit-fallthrough.\",\n      \"relevance\": \"Shows the switch-based byte accesses were present and unchanged; the fall-through style is intentional but not the root cause.\",\n      \"_note\": \"truncated diff in report\"\n    },\n    {\n      \"hash\": \"3c8a3e9\",\n      \"message\": \"Use random seed in xmlDictComputeFastKey\",\n      \"changes\": \"Changed initialization from value = *name to value += *name and incorporated seed into the hash computation.\",\n      \"relevance\": \"Alters initial handling of the first byte but did not add bounds checks for namelen==0; thus it could still dereference name when length is zero.\",\n      \"_note\": \"2019 change\"\n    },\n    {\n      \"hash\": \"547edbf\",\n      \"message\": \"[CVE-2023-29469] Hashing of empty dict strings isn't deterministic\",\n      \"changes\": \"Added a guard: if ((name == NULL) || (namelen <= 0)) return(value); so empty (non-null-terminated) strings and namelen<=0 are handled safely.\",\n      \"relevance\": \"Directly addresses the out-of-bounds read for zero-length strings by early-returning \u2014 this is the corrective change for this class of bug.\",\n      \"_note\": \"Fix discovered by OSS-Fuzz\"\n    }\n  ],\n  \"vulnerability_origin\": \"The function lacked a guard for namelen <= 0 and dereferenced name (e.g. *name) unconditionally. Over time the code was adjusted for hashing and warnings but no bounds check was present; this allowed one-byte out-of-bounds reads when an empty or zero-length string view was passed. The 2023 commit adds the missing guard.\",\n  \"fix_hints\": \"History shows the correct fix is a small defensive check at function start to validate namelen before dereferencing, and to consistently include the seed. Also audit nearby functions (xmlDictComputeFastQKey and callers) for similar missing checks.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add an early-return guard: if ((name == NULL) || (namelen <= 0)) return(value);\",\n      \"reasoning\": \"Minimal, low-risk change that matches the historical CVE fix. Prevents dereferencing name[0] or indexing into name when length is zero.\",\n      \"trade_offs\": \"Very small behavioral change for callers passing namelen<=0; should be safe and fixes the crash with negligible overhead.\"\n    },\n    {\n      \"approach\": \"Make all byte accesses explicitly bounds-checked: only access name[i] when i < namelen and avoid relying on fall-through switch logic without checks.\",\n      \"reasoning\": \"More robust and prevents other off-by-one or future regressions where namelen may be inconsistent with the buffer.\",\n      \"trade_offs\": \"Requires more code changes and small performance cost; but increases safety and clarity.\"\n    },\n    {\n      \"approach\": \"Normalize inputs at the callers: ensure callers never pass namelen <= 0 or pass a properly-terminated buffer, or create a safe temporary copy when necessary.\",\n      \"reasoning\": \"Fixes root cause by ensuring function preconditions are met and reduces need for repeated defensive checks.\",\n      \"trade_offs\": \"Shifts burden to callers, may require more code changes and copying, and is error-prone if not applied consistently.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "/src/libxml2/dict.c",
+      "function_analyzed": "xmlDictComputeFastKey",
+      "relevant_commits": [
+        {
+          "hash": "d2c329a",
+          "message": "Fix -Wimplicit-fallthrough warnings",
+          "changes": "Added explicit /* Falls through. */ comments to the switch cases in xmlDictComputeFastKey and xmlDictComputeFastQKey to silence -Wimplicit-fallthrough.",
+          "relevance": "Shows the switch-based byte accesses were present and unchanged; the fall-through style is intentional but not the root cause.",
+          "_note": "truncated diff in report"
+        },
+        {
+          "hash": "3c8a3e9",
+          "message": "Use random seed in xmlDictComputeFastKey",
+          "changes": "Changed initialization from value = *name to value += *name and incorporated seed into the hash computation.",
+          "relevance": "Alters initial handling of the first byte but did not add bounds checks for namelen==0; thus it could still dereference name when length is zero.",
+          "_note": "2019 change"
+        },
+        {
+          "hash": "547edbf",
+          "message": "[CVE-2023-29469] Hashing of empty dict strings isn't deterministic",
+          "changes": "Added a guard: if ((name == NULL) || (namelen <= 0)) return(value); so empty (non-null-terminated) strings and namelen<=0 are handled safely.",
+          "relevance": "Directly addresses the out-of-bounds read for zero-length strings by early-returning \u2014 this is the corrective change for this class of bug.",
+          "_note": "Fix discovered by OSS-Fuzz"
+        }
+      ],
+      "vulnerability_origin": "The function lacked a guard for namelen <= 0 and dereferenced name (e.g. *name) unconditionally. Over time the code was adjusted for hashing and warnings but no bounds check was present; this allowed one-byte out-of-bounds reads when an empty or zero-length string view was passed. The 2023 commit adds the missing guard.",
+      "fix_hints": "History shows the correct fix is a small defensive check at function start to validate namelen before dereferencing, and to consistently include the seed. Also audit nearby functions (xmlDictComputeFastQKey and callers) for similar missing checks.",
+      "fix_suggestions": [
+        {
+          "approach": "Add an early-return guard: if ((name == NULL) || (namelen <= 0)) return(value);",
+          "reasoning": "Minimal, low-risk change that matches the historical CVE fix. Prevents dereferencing name[0] or indexing into name when length is zero.",
+          "trade_offs": "Very small behavioral change for callers passing namelen<=0; should be safe and fixes the crash with negligible overhead."
+        },
+        {
+          "approach": "Make all byte accesses explicitly bounds-checked: only access name[i] when i < namelen and avoid relying on fall-through switch logic without checks.",
+          "reasoning": "More robust and prevents other off-by-one or future regressions where namelen may be inconsistent with the buffer.",
+          "trade_offs": "Requires more code changes and small performance cost; but increases safety and clarity."
+        },
+        {
+          "approach": "Normalize inputs at the callers: ensure callers never pass namelen <= 0 or pass a properly-terminated buffer, or create a safe temporary copy when necessary.",
+          "reasoning": "Fixes root cause by ensuring function preconditions are met and reduces need for repeated defensive checks.",
+          "trade_offs": "Shifts burden to callers, may require more code changes and copying, and is error-prone if not applied consistently."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 24710,
+      "output_tokens": 4948
+    },
+    "timing": {
+      "start_time": 1769072235.2682726,
+      "end_time": 1769072370.1430767,
+      "duration": 134.87480401992798
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlDictComputeFastKey / xmlDictLookup (dict.c) when handling NCName/QName parsing (xmlParseNCName / xmlParseQName in parser.c). The code reads one byte past a global string literal into adjacent global data (e.g. the xmlIsPubidChar_tab table), causing an out-of-bounds",
+      "total_steps": 3,
+      "total_duration": 134.87480401992798,
+      "total_input_tokens": 24710,
+      "total_output_tokens": 4948,
+      "total_cost": 0.00568955,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"xmlDictComputeFastKey (and related fast key code) assumed it could index into the caller-provided pointer up to namelen and even read name[namelen-1]. In some parsing paths callers pass pointers that reference tiny global string literals or string views where the provided length is not safe to index, causing a 1-byte read past the terminator into adjacent global data and triggering ASan global-buffer-overflow.\",\n\n  \"fix_approach\": \"I iteratively applied conservative, localized fixes focused on preventing any out-of-bounds reads in dict.c. The main changes were: (1) replace the fast-key and fast-QKey implementations with conservative versions that do not perform unsafe indexing into the supplied name/prefix (they now compute a key from seed/length only), (2) attempts were made to add guards to xmlDictLookup/xmlDictExists length handling to avoid treating invalid lengths as safe, and (3) several experimental adjustments (and subsequent rollbacks where unsafe) were applied while testing. The goal was to remove any name[...] or memchr() usage that could read beyond the valid bytes of the caller-supplied pointer.\",\n\n  \"files_modified\": [\n    \"dict.c\"\n  ],\n\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": false,\n    \"exit_code\": 1,\n    \"asan_output\": \"AddressSanitizer: global-buffer-overflow in xmlDictComputeFastKey /src/libxml2/dict.c (read of size 1) - summary: read one byte past a small global string literal into adjacent global data (xmlIsPubidChar_tab). Multiple iterations replaced and hardened fast-key code, but the repro still triggers ASan; the last run showed ASan complaining about memchr in dict.c which indicates some attempts introduced a memchr scanning past accessible memory (memchr itself can read OOB if the caller's provided length is not backed by accessible bytes).\"\n  },\n\n  \"next_steps_and_recommendation\": \"The current iterative patches reduced risky indexing but the ASan repro remains. The safest correct fixes are either: \\n 1) Make xmlDictLookup fully length-aware: add a new xmlDictLookupLen API (or require callers to always pass -1 for NUL-terminated strings) and ensure callers that pass explicit lengths also guarantee the buffer contains at least that many bytes. Where callers only have a pointer into an input buffer, ensure the parser uses the buffer base/size to check the pointer range before calling xmlDictLookup with an explicit len.\\n 2) Change the parser callers (e.g. xmlParseNCNameComplex / xmlParseQName sites) to pass -1 when the pointer points to a NUL-terminated string literal, or to copy short/potentially-unsafe string fragments into a small local buffer that is NUL-terminated and padded, then pass that to xmlDictLookup.\\n 3) Remove any use of memchr on caller-provided length ranges inside xmlDictLookup (memchr is unsafe if the specified size extends past the accessible memory). Do not attempt to detect embedded NULs by scanning len bytes unless the code can guarantee those bytes are accessible.\\n\\nGiven the codebase, the most localized robust approach is to: (A) restore safe fast-key computation that never dereferences beyond name[0] (or uses length-only mixing), (B) revert any memchr-based attempts and instead ensure xmlDictLookup treats len >= 0 as authoritative (do not probe beyond len), and (C) audit caller sites that pass explicit lengths and either ensure they only pass valid lengths or change them to pass -1 to use strlen on NUL-terminated data.\\n\\nI recommend: implement (B) + (C) for the parser paths that trigger the bug (xmlParseNCNameComplex / xmlParseQName): modify the parser to call xmlDictLookup with -1 when the pointer refers to an NUL-terminated region or ensure the buffer ownership makes the supplied length safe. This will avoid memchr/extra probes and stop the fast-key from ever seeing a length that leads to OOB indexing.\\n\\nIf you want, I can now: (1) revert the experimental memchr changes, (2) make the fast-key functions deterministic and minimal (only seed+length mixing) to avoid any dereference, and (3) change the parser calls at the specific NCName/QName return sites to use -1 instead of explicit lengths. I will then rebuild and re-run secb repro until ASan is clean.\"\n}",
+    "parsed_output": {
+      "root_cause": "xmlDictComputeFastKey (and related fast key code) assumed it could index into the caller-provided pointer up to namelen and even read name[namelen-1]. In some parsing paths callers pass pointers that reference tiny global string literals or string views where the provided length is not safe to index, causing a 1-byte read past the terminator into adjacent global data and triggering ASan global-buffer-overflow.",
+      "fix_approach": "I iteratively applied conservative, localized fixes focused on preventing any out-of-bounds reads in dict.c. The main changes were: (1) replace the fast-key and fast-QKey implementations with conservative versions that do not perform unsafe indexing into the supplied name/prefix (they now compute a key from seed/length only), (2) attempts were made to add guards to xmlDictLookup/xmlDictExists length handling to avoid treating invalid lengths as safe, and (3) several experimental adjustments (and subsequent rollbacks where unsafe) were applied while testing. The goal was to remove any name[...] or memchr() usage that could read beyond the valid bytes of the caller-supplied pointer.",
+      "files_modified": [
+        "dict.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": false,
+        "exit_code": 1,
+        "asan_output": "AddressSanitizer: global-buffer-overflow in xmlDictComputeFastKey /src/libxml2/dict.c (read of size 1) - summary: read one byte past a small global string literal into adjacent global data (xmlIsPubidChar_tab). Multiple iterations replaced and hardened fast-key code, but the repro still triggers ASan; the last run showed ASan complaining about memchr in dict.c which indicates some attempts introduced a memchr scanning past accessible memory (memchr itself can read OOB if the caller's provided length is not backed by accessible bytes)."
+      },
+      "next_steps_and_recommendation": "The current iterative patches reduced risky indexing but the ASan repro remains. The safest correct fixes are either: \n 1) Make xmlDictLookup fully length-aware: add a new xmlDictLookupLen API (or require callers to always pass -1 for NUL-terminated strings) and ensure callers that pass explicit lengths also guarantee the buffer contains at least that many bytes. Where callers only have a pointer into an input buffer, ensure the parser uses the buffer base/size to check the pointer range before calling xmlDictLookup with an explicit len.\n 2) Change the parser callers (e.g. xmlParseNCNameComplex / xmlParseQName sites) to pass -1 when the pointer points to a NUL-terminated string literal, or to copy short/potentially-unsafe string fragments into a small local buffer that is NUL-terminated and padded, then pass that to xmlDictLookup.\n 3) Remove any use of memchr on caller-provided length ranges inside xmlDictLookup (memchr is unsafe if the specified size extends past the accessible memory). Do not attempt to detect embedded NULs by scanning len bytes unless the code can guarantee those bytes are accessible.\n\nGiven the codebase, the most localized robust approach is to: (A) restore safe fast-key computation that never dereferences beyond name[0] (or uses length-only mixing), (B) revert any memchr-based attempts and instead ensure xmlDictLookup treats len >= 0 as authoritative (do not probe beyond len), and (C) audit caller sites that pass explicit lengths and either ensure they only pass valid lengths or change them to pass -1 to use strlen on NUL-terminated data.\n\nI recommend: implement (B) + (C) for the parser paths that trigger the bug (xmlParseNCNameComplex / xmlParseQName): modify the parser to call xmlDictLookup with -1 when the pointer refers to an NUL-terminated region or ensure the buffer ownership makes the supplied length safe. This will avoid memchr/extra probes and stop the fast-key from ever seeing a length that leads to OOB indexing.\n\nIf you want, I can now: (1) revert the experimental memchr changes, (2) make the fast-key functions deterministic and minimal (only seed+length mixing) to avoid any dereference, and (3) change the parser calls at the specific NCName/QName return sites to use -1 instead of explicit lengths. I will then rebuild and re-run secb repro until ASan is clean."
+    },
+    "success": false,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 1908848,
+      "output_tokens": 69742
+    },
+    "timing": {
+      "start_time": 1769072370.1468525,
+      "end_time": 1769073164.9115524,
+      "duration": 794.7646999359131
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA global-buffer-overflow (out-of-bounds read) occurs in xmlDictComputeFastKey / xmlDictLookup (dict.c) when handling NCName/QName parsing (xmlParseNCName / xmlParseQName in parser.c). The code reads one byte past a global string literal into adjacent global data (e.g. the xmlIsPubidChar_tab table), causing an out-of-bounds",
+      "total_steps": 47,
+      "total_duration": 794.7646999359131,
+      "total_input_tokens": 1908848,
+      "total_output_tokens": 69742,
+      "total_cost": 0.1020392,
+      "final_state": "failed"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 1994817,
+    "output_tokens": 80187
+  },
+  "timing": {
+    "total_duration": 1025.8741369247437
+  }
+}

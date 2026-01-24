@@ -1,0 +1,33 @@
+diff --git a/xinclude.c b/xinclude.c
+index f48e0af5..91b1d350 100644
+--- a/xinclude.c
++++ b/xinclude.c
+@@ -798,7 +798,27 @@ xmlXIncludeAddTxt(xmlXIncludeCtxtPtr ctxt, xmlNodePtr txt, const xmlURL url) {
+ 	    return;
+ 	}
+     }
+-    ctxt->txtTab[ctxt->txtNr] = txt;
++    /* Ensure the stored text node is owned by the main document so
++     * it won't be freed by the parser/reader lifetime management.
++     * Copy the node into ctxt->doc and store the copy. Free the
++     * original temporary node.
++     */
++    if (txt != NULL) {
++        xmlNodePtr copy = NULL;
++        if (ctxt->doc != NULL) {
++            copy = xmlDocCopyNode(txt, ctxt->doc, 1);
++        }
++        if (copy == NULL) {
++            /* Fallback: store the original node if copy failed */
++            copy = txt;
++        } else {
++            /* We created a copy owned by ctxt->doc, free the tmp */
++            xmlFreeNode(txt);
++        }
++        ctxt->txtTab[ctxt->txtNr] = copy;
++    } else {
++        ctxt->txtTab[ctxt->txtNr] = NULL;
++    }
+     ctxt->txturlTab[ctxt->txtNr] = xmlStrdup(url);
+     ctxt->txtNr++;
+ }

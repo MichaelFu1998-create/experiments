@@ -1,0 +1,70 @@
+diff --git a/src/njs_scope.h b/src/njs_scope.h
+--- a/src/njs_scope.h
++++ b/src/njs_scope.h
+@@ -79,8 +79,33 @@
+ njs_inline njs_value_t *
+ njs_scope_value(njs_vm_t *vm, njs_index_t index)
+ {
+-    return vm->levels[njs_scope_index_type(index)]
+-                     [njs_scope_index_value(index)];
++    njs_level_type_t  type;
++    uint32_t          idx;
++    njs_value_t      **refs;
++
++    type = njs_scope_index_type(index);
++    idx = njs_scope_index_value(index);
++
++    if (type >= NJS_LEVEL_MAX) {
++        /* Return undefined for invalid level to avoid NULL dereference. */
++        return (njs_value_t *) &njs_value_undefined;
++    }
++
++    refs = vm->levels[type];
++
++    if (refs == NULL) {
++        /* Lazily allocate the level storage to prevent NULL access.
++         * Allocate enough slots to accommodate the requested index.
++         */
++        refs = njs_scope_make(vm, idx + 1);
++        if (njs_slow_path(refs == NULL)) {
++            return (njs_value_t *) &njs_value_undefined;
++        }
++
++        vm->levels[type] = refs;
++    }
++
++    return refs[idx];
+ }
+ 
+ 
+@@ -108,8 +133,30 @@
+ njs_inline void
+ njs_scope_value_set(njs_vm_t *vm, njs_index_t index, njs_value_t *value)
+ {
+-    vm->levels[njs_scope_index_type(index)]
+-              [njs_scope_index_value(index)] = value;
++    njs_level_type_t  type;
++    uint32_t          idx;
++    njs_value_t      **refs;
++
++    type = njs_scope_index_type(index);
++    idx = njs_scope_index_value(index);
++
++    if (type >= NJS_LEVEL_MAX) {
++        /* Invalid level: drop the set to avoid crash. */
++        return;
++    }
++
++    refs = vm->levels[type];
++
++    if (refs == NULL) {
++        refs = njs_scope_make(vm, idx + 1);
++        if (njs_slow_path(refs == NULL)) {
++            return;
++        }
++
++        vm->levels[type] = refs;
++    }
++
++    refs[idx] = value;
+ }

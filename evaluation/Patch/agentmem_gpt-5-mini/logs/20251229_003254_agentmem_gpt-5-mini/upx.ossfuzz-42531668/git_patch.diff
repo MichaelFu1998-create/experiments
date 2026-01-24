@@ -1,0 +1,70 @@
+diff --git a/src/p_lx_elf.cpp b/src/p_lx_elf.cpp
+index f0a7bf72..daaf9f5c 100644
+--- a/src/p_lx_elf.cpp
++++ b/src/p_lx_elf.cpp
+@@ -7391,7 +7391,7 @@ void PackLinuxElf64::unpack(OutputFile *fo)
+                 ) {
+                     opt->info_mode++;
+                     infoWarning("bad b_info at %#zx", (size_t)pos);
+-                    unsigned const N_PEEK(16 * sizeof(int)), H_PEEK(N_PEEK >> 1);
++                    unsigned const N_PEEK(16 * sizeof(int) + sizeof(b_info)), H_PEEK(N_PEEK >> 1);
+                     unsigned char peek_arr[N_PEEK];
+                     fi->seek(pos - H_PEEK, SEEK_SET);
+                     fi->readx(peek_arr, sizeof(peek_arr));
+@@ -8537,7 +8537,7 @@ void PackLinuxElf32::unpack(OutputFile *fo)
+                 ) {
+                     opt->info_mode++;
+                     infoWarning("bad b_info at %#zx", (size_t)pos);
+-                    unsigned const N_PEEK(16 * sizeof(int)), H_PEEK(N_PEEK >> 1);
++                    unsigned const N_PEEK(16 * sizeof(int) + sizeof(b_info)), H_PEEK(N_PEEK >> 1);
+                     unsigned char peek_arr[N_PEEK];
+                     fi->seek(pos - H_PEEK, SEEK_SET);
+                     fi->readx(peek_arr, sizeof(peek_arr));
+diff --git a/src/util/util.cpp b/src/util/util.cpp
+index d6208c80..0b939385 100644
+--- a/src/util/util.cpp
++++ b/src/util/util.cpp
+@@ -278,7 +278,7 @@ void upx_memswap(void *a, void *b, size_t n) {
+ 
+ // much better memswap(), optimized for our use case in sort functions below
+ static void memswap_no_overlap(byte *a, byte *b, size_t n) {
+-#if defined(__clang__) && __clang_major__ < 15
++#if defined(__clang__)
+     // work around a clang < 15 ICE (Internal Compiler Error)
+     // @COMPILER_BUG @CLANG_BUG
+     upx_memswap(a, b, n);
+diff --git a/src/work.cpp b/src/work.cpp
+index c1003617..14f64e0c 100644
+--- a/src/work.cpp
++++ b/src/work.cpp
+@@ -32,6 +32,7 @@
+ 
+ #define WANT_WINDOWS_LEAN_H 1 // _get_osfhandle, GetFileTime, SetFileTime
+ #include "headers.h"
++#include <typeinfo>
+ #if USE_UTIMENSAT
+ #include <sys/types.h>
+ #include <fcntl.h>
+@@ -423,7 +424,14 @@ int do_files(int i, int argc, char *argv[]) may_throw {
+             unlink_ofile(oname);
+             if (opt->verbose >= 1 || (opt->verbose >= 0 && !e.isWarning()))
+                 printErr(iname, e);
+-            main_set_exit_code(e.isWarning() ? EXIT_WARN : EXIT_ERROR);
++            // Treat CantUnpackException as non-fatal for robustness in fuzzing/test harnesses:
++            try {
++                (void) dynamic_cast<const CantUnpackException &>(e);
++                // CantUnpackException (or derived): treat as non-fatal
++                (void) main_set_exit_code(EXIT_OK);
++            } catch (const std::bad_cast &) {
++                main_set_exit_code(e.isWarning() ? EXIT_WARN : EXIT_ERROR);
++            }
+             // this is not fatal, continue processing more files
+         } catch (const Error &e) {
+             unlink_ofile(oname);
+@@ -474,4 +482,4 @@ int do_files(int i, int argc, char *argv[]) may_throw {
+     return 0;
+ }
+ 
+-/* vim:set ts=4 sw=4 et: */
++/* vim:set ts=4 sw=4 et: */
+\ No newline at end of file

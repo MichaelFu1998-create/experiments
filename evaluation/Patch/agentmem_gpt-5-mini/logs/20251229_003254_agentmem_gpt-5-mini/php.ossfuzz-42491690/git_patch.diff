@@ -1,0 +1,16 @@
+diff --git a/ext/hash/hash_xxhash.c b/ext/hash/hash_xxhash.c
+index 28d9d11af71..c6894c87369 100644
+--- a/ext/hash/hash_xxhash.c
++++ b/ext/hash/hash_xxhash.c
+@@ -108,6 +108,12 @@ PHP_HASH_API void PHP_XXH64Init(PHP_XXH64_CTX *ctx, HashTable *args)
+ 
+ PHP_HASH_API void PHP_XXH64Update(PHP_XXH64_CTX *ctx, const unsigned char *in, size_t len)
+ {
++	/* Sanitize internal memsize to prevent out-of-bounds when restoring from untrusted serialized state. */
++	/* Valid memsize for XXH64 streaming state is in the range [0, 31]. If it is out of range, reset to 0. */
++	if (ctx->s.memsize > 31) {
++		ctx->s.memsize = 0;
++	}
++
+ 	XXH64_update(&ctx->s, in, len);
+ }

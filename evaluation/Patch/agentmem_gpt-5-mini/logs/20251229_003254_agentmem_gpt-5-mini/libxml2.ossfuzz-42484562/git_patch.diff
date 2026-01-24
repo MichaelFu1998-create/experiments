@@ -1,0 +1,22 @@
+diff --git a/xmlreader.c b/xmlreader.c
+index 3fd9aa4c..df82ef86 100644
+--- a/xmlreader.c
++++ b/xmlreader.c
+@@ -305,6 +305,18 @@ xmlTextReaderFreeProp(xmlTextReaderPtr reader, xmlAttrPtr cur) {
+         if (xmlIsID(cur->parent->doc, cur->parent, cur))
+ 	    xmlTextReaderRemoveID(cur->parent->doc, cur);
+     }
++    /*
++     * When running the validating reader, attributes may have been
++     * registered in the document reference table (doc->refs). If the
++     * reader is freeing the attribute here we must remove any entries
++     * referencing it to avoid leaving stale pointers that the validator
++     * could later dereference (causing use-after-free). Remove the
++     * ref entry before freeing the attribute children.
++     */
++    if ((cur->parent != NULL) && (cur->parent->doc != NULL) &&
++        (cur->parent->doc->refs != NULL)) {
++        xmlRemoveRef(cur->parent->doc, cur);
++    }
+     if (cur->children != NULL)
+         xmlTextReaderFreeNodeList(reader, cur->children);

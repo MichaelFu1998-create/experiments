@@ -1,0 +1,136 @@
+diff --git a/src/njs_array.c b/src/njs_array.c
+--- a/src/njs_array.c
++++ b/src/njs_array.c
+@@ -76,6 +76,11 @@
+             goto memory_error;
+         }
+ 
++        /* Initialize array slots as invalid to avoid using uninitialized values. */
++        for (uint32_t _i = 0; _i < size; _i++) {
++            array->data[_i] = njs_value_invalid;
++        }
++
+     } else {
+         array->data = NULL;
+     }
+@@ -1659,7 +1664,7 @@
+     njs_chb_t          chain;
+     njs_utf8_t         utf8;
+     njs_value_t        *value, *this, entry;
+-    njs_string_prop_t  separator, string;
++    njs_string_prop_t  separator;
+ 
+     this = njs_argument(args, 0);
+ 
+@@ -1707,12 +1712,15 @@
+     njs_chb_init(&chain, vm->mem_pool);
+ 
+     for (i = 0; i < len; i++) {
++        /* Initialize entry to INVALID each iteration to avoid using stale values
++           when property lookup returns DECLINED. */
++        njs_set_invalid(&entry);
+         ret = njs_value_property_i64(vm, this, i, value);
+         if (njs_slow_path(ret == NJS_ERROR)) {
+             return ret;
+         }
+ 
+-        if (!njs_is_null_or_undefined(value)) {
++        if (njs_is_valid(value) && !njs_is_null_or_undefined(value)) {
+             if (!njs_is_string(value)) {
+                 last = njs_chb_current(&chain);
+ 
+@@ -1731,14 +1739,21 @@
+                 length += ret;
+ 
+             } else {
+-                (void) njs_string_prop(&string, value);
+-
+-                if (njs_is_byte_string(&string)) {
++                /* Treat string values via njs_value_to_chain to reuse
++                 * existing conversion/validation logic. */
++                last = njs_chb_current(&chain);
++
++                ret = njs_value_to_chain(vm, &chain, value);
++                if (njs_slow_path(ret < NJS_OK)) {
++                    return ret;
++                }
++
++                if (last != njs_chb_current(&chain) && ret == 0) {
++                    /* Appended values was a byte string. */
+                     utf8 = NJS_STRING_BYTE;
+                 }
+ 
+-                length += string.length;
+-                njs_chb_append(&chain, string.start, string.size);
++                length += ret;
+             }
+         }
+ 
+diff --git a/src/njs_string.c b/src/njs_string.c
+--- a/src/njs_string.c
++++ b/src/njs_string.c
+@@ -280,9 +280,18 @@
+         length = value->short_string.length;
+ 
+     } else {
+-        string->start = (u_char *) value->long_string.data->start;
+-        size = value->long_string.size;
+-        length = value->long_string.data->length;
++        /* Defensive checks: ensure long_string.data and its start are valid. */
++        if (value->long_string.data == NULL || value->long_string.data->start == NULL) {
++            /* Treat as empty string to avoid dereferencing invalid pointers. */
++            string->start = (u_char *) "";
++            size = 0;
++            length = 0;
++
++        } else {
++            string->start = (u_char *) value->long_string.data->start;
++            size = value->long_string.size;
++            length = value->long_string.data->length;
++        }
+     }
+ 
+     string->size = size;
+@@ -556,6 +565,18 @@
+         }
+ 
+     } else {
++        /* Defensive check: ensure long_string.data is valid. */
++        if (value->long_string.data == NULL || value->long_string.data->start == NULL) {
++            string->start = (u_char *) "";
++            size = 0;
++            length = 0;
++
++            string->size = size;
++            string->length = length;
++
++            return length;
++        }
++
+         string->start = value->long_string.data->start;
+         size = value->long_string.size;
+         length = value->long_string.data->length;
+diff --git a/src/njs_value.c b/src/njs_value.c
+--- a/src/njs_value.c
++++ b/src/njs_value.c
+@@ -1641,6 +1641,7 @@
+     const njs_value_t *src)
+ {
+     njs_string_prop_t  string;
++    njs_int_t           ret;
+ 
+     switch (src->type) {
+ 
+@@ -1670,7 +1671,12 @@
+         return NJS_ERROR;
+ 
+     case NJS_STRING:
+-        (void) njs_string_prop(&string, src);
++        /* Validate string internals before appending to the chain. */
++        ret = njs_string_validate(vm, &string, (njs_value_t *) src);
++        if (njs_slow_path(ret < 0)) {
++            return NJS_ERROR;
++        }
++
+         njs_chb_append(chain, string.start, string.size);
+         return string.length;

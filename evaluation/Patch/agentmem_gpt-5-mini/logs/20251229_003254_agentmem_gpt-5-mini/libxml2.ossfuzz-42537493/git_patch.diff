@@ -1,0 +1,84 @@
+diff --git a/encoding.c b/encoding.c
+index 3d336fb1..0aa0532d 100644
+--- a/encoding.c
++++ b/encoding.c
+@@ -1914,21 +1914,50 @@ retry:
+  */
+ int
+ xmlCharEncCloseFunc(xmlCharEncodingHandler *handler) {
++    /* Defensive: avoid double-free / use-after-free by remembering
++     * closed handler pointers. This is a minimal mitigation to
++     * prevent crashes when multiple owners attempt to close the
++     * same handler. It trades a small memory leak for safety. */
++    typedef struct _freedHandlerNode {
++        struct _freedHandlerNode *next;
++        xmlCharEncodingHandler *ptr;
++    } freedHandlerNode;
++    static freedHandlerNode *freedList = NULL;
++    freedHandlerNode *n;
++
+     if (handler == NULL)
+         return(0);
+ 
++    /* If this handler pointer was already closed, do nothing. Do not
++     * dereference handler to avoid use-after-free. */
++    for (n = freedList; n != NULL; n = n->next) {
++        if (n->ptr == handler)
++            return(0);
++    }
++
++    /* Static handlers should not be freed. */
+     if (handler->flags & XML_HANDLER_STATIC)
+         return(0);
+ 
++    /* Free handler contents safely. */
+     xmlFree(handler->name);
+     if (handler->ctxtDtor != NULL) {
+         handler->ctxtDtor(handler->inputCtxt);
+         handler->ctxtDtor(handler->outputCtxt);
+     }
+     xmlFree(handler);
++
++    /* Record the pointer so subsequent close calls are no-ops. */
++    n = (freedHandlerNode *) xmlMalloc(sizeof(freedHandlerNode));
++    if (n != NULL) {
++        n->ptr = handler;
++        n->next = freedList;
++        freedList = n;
++    }
+     return(0);
+ }
+ 
++
+ /**
+  * xmlByteConsumed:
+  * @ctxt: an XML parser context
+diff --git a/xmlIO.c b/xmlIO.c
+index 1b7b4606..68fba94f 100644
+--- a/xmlIO.c
++++ b/xmlIO.c
+@@ -1525,7 +1525,6 @@ __xmlOutputBufferCreateFilename(const char *URI,
+             unescaped = xmlURIUnescapeString(URI, 0, NULL);
+             if (unescaped == NULL) {
+                 xmlFreeURI(puri);
+-                xmlCharEncCloseFunc(encoder);
+                 return(NULL);
+             }
+             URI = unescaped;
+@@ -1539,7 +1538,6 @@ __xmlOutputBufferCreateFilename(const char *URI,
+     ret = xmlAllocOutputBufferInternal(encoder);
+     if (ret == NULL) {
+         xmlFree(unescaped);
+-        xmlCharEncCloseFunc(encoder);
+         return(NULL);
+     }
+ 
+@@ -1568,7 +1566,8 @@ __xmlOutputBufferCreateFilename(const char *URI,
+     }
+ 
+     if (ret->context == NULL) {
+-        xmlOutputBufferClose(ret);
++        ret->encoder = NULL;
++	xmlOutputBufferClose(ret);
+ 	ret = NULL;
+     }

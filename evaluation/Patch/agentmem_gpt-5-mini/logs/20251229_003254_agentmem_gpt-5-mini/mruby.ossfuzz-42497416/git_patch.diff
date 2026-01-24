@@ -1,0 +1,15 @@
+diff --git a/src/array.c b/src/array.c
+index 739b2b3e1..29ca1733a 100644
+--- a/src/array.c
++++ b/src/array.c
+@@ -590,6 +590,10 @@ mrb_ary_shift_m(mrb_state *mrb, mrb_value self)
+     return mrb_ary_shift(mrb, self);
+   };
+   ary_modify_check(mrb, a);
++  if (n <= 0) {
++    /* treat negative or zero shift counts as returning an empty array */
++    return mrb_ary_new(mrb);
++  }
+   if (len == 0 || n == 0) return mrb_ary_new(mrb);
+   if (n > len) n = len;
+   val = mrb_ary_new_from_values(mrb, n, ARY_PTR(a));

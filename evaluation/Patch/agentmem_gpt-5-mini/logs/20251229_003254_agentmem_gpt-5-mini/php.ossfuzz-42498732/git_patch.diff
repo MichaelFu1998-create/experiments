@@ -1,0 +1,30 @@
+diff --git a/Zend/zend_operators.c b/Zend/zend_operators.c
+index 193aade5fb3..d54a27e5f26 100644
+--- a/Zend/zend_operators.c
++++ b/Zend/zend_operators.c
+@@ -1325,12 +1325,19 @@ ZEND_API zend_result ZEND_FASTCALL div_function(zval *result, zval *op1, zval *o
+ 	}
+ 
+ 	if (result == op1) {
+-		zval_ptr_dtor(result);
+-	}
+-
+-	retval = div_function_base(result, &op1_copy, &op2_copy);
+-	if (retval == SUCCESS) {
+-		return SUCCESS;
++		zval tmp_res;
++		retval = div_function_base(&tmp_res, &op1_copy, &op2_copy);
++		if (retval == SUCCESS) {
++			zval_ptr_dtor(result);
++			ZVAL_COPY_VALUE(result, &tmp_res);
++			return SUCCESS;
++		}
++		/* If operation failed (e.g. DIV_BY_ZERO), tmp_res is not initialized and must not be dtor'd */
++	} else {
++		retval = div_function_base(result, &op1_copy, &op2_copy);
++		if (retval == SUCCESS) {
++			return SUCCESS;
++		}
+ 	}
+ 
+ div_by_zero:

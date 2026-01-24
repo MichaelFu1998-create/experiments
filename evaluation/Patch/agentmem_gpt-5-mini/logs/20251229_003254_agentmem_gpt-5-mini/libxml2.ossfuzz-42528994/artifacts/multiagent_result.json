@@ -1,0 +1,214 @@
+{
+  "instance_id": "libxml2.ossfuzz-42528994",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"/src/libxml2/parserInternals.c\",\n      \"line\": 2356,\n      \"message\": \"Suspicious array access with potentially unsafe index (CodeQL memory analysis)\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/libxml2/parser.c\",\n      \"line\": 4269,\n      \"message\": \"Suspicious array access with potentially unsafe index (CodeQL memory analysis)\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"/src/libxml2/parser.c\",\n      \"line\": 10353,\n      \"message\": \"Suspicious array access with potentially unsafe index (CodeQL memory analysis)\",\n      \"severity\": \"warning\"\n    }\n  ],\n  \"dataflow_summary\": \"CodeQL dataflow run reported many uses of unsafe string APIs (strcat/strcpy) elsewhere, but did not produce a direct taint path from external input into xmlCopyCharMultiByte. The dataflow results highlight risky string handling but not an exact taint to the ASan crash site.\",\n  \"key_insight\": \"ASan shows a heap-buffer-overflow in xmlCopyCharMultiByte when parsing comments. CodeQL memory analysis flagged multiple suspicious array accesses in parserInternals.c and parser.c, indicating insufficient bounds checks when handling/accumulating character data (likely under-allocation for multi-byte characters in comment buffering).\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add explicit bounds checks and destination-size parameter in xmlCopyCharMultiByte and ensure callers pass/verify the buffer size before writing.\",\n      \"reasoning\": \"Fixes the write-site directly, preventing out-of-bounds writes even if callers miscalculate sizes.\",\n      \"trade_offs\": \"Requires API changes or internal refactor; must audit and update all callers; small runtime cost for checks.\"\n    },\n    {\n      \"approach\": \"In xmlParseCommentComplex (caller), compute and allocate enough space when expanding the comment buffer using worst-case bytes-per-character for the encoding, or use a checked growable buffer helper for appends.\",\n      \"reasoning\": \"Localizes the fix to the comment accumulation path (minimal API change) and prevents under-allocation that leads to overflow in xmlCopyCharMultiByte.\",\n      \"trade_offs\": \"May increase memory usage slightly (allocating worst-case size) and requires careful handling for different encodings; fewer code changes than altering low-level copy routine.\"\n    },\n    {\n      \"approach\": \"Introduce a centralized safe-append API (checked realloc + memcpy) used throughout parser for multi-byte character accumulation and replace ad-hoc appends.\",\n      \"reasoning\": \"Provides a single, auditable place for correct growth and bounds checking, reducing chances of similar bugs elsewhere.\",\n      \"trade_offs\": \"Requires more refactoring work and testing; potential performance impact if not optimized.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "analysis_type": "memory",
+      "findings": [
+        {
+          "file": "/src/libxml2/parserInternals.c",
+          "line": 2356,
+          "message": "Suspicious array access with potentially unsafe index (CodeQL memory analysis)",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/libxml2/parser.c",
+          "line": 4269,
+          "message": "Suspicious array access with potentially unsafe index (CodeQL memory analysis)",
+          "severity": "warning"
+        },
+        {
+          "file": "/src/libxml2/parser.c",
+          "line": 10353,
+          "message": "Suspicious array access with potentially unsafe index (CodeQL memory analysis)",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "CodeQL dataflow run reported many uses of unsafe string APIs (strcat/strcpy) elsewhere, but did not produce a direct taint path from external input into xmlCopyCharMultiByte. The dataflow results highlight risky string handling but not an exact taint to the ASan crash site.",
+      "key_insight": "ASan shows a heap-buffer-overflow in xmlCopyCharMultiByte when parsing comments. CodeQL memory analysis flagged multiple suspicious array accesses in parserInternals.c and parser.c, indicating insufficient bounds checks when handling/accumulating character data (likely under-allocation for multi-byte characters in comment buffering).",
+      "fix_suggestions": [
+        {
+          "approach": "Add explicit bounds checks and destination-size parameter in xmlCopyCharMultiByte and ensure callers pass/verify the buffer size before writing.",
+          "reasoning": "Fixes the write-site directly, preventing out-of-bounds writes even if callers miscalculate sizes.",
+          "trade_offs": "Requires API changes or internal refactor; must audit and update all callers; small runtime cost for checks."
+        },
+        {
+          "approach": "In xmlParseCommentComplex (caller), compute and allocate enough space when expanding the comment buffer using worst-case bytes-per-character for the encoding, or use a checked growable buffer helper for appends.",
+          "reasoning": "Localizes the fix to the comment accumulation path (minimal API change) and prevents under-allocation that leads to overflow in xmlCopyCharMultiByte.",
+          "trade_offs": "May increase memory usage slightly (allocating worst-case size) and requires careful handling for different encodings; fewer code changes than altering low-level copy routine."
+        },
+        {
+          "approach": "Introduce a centralized safe-append API (checked realloc + memcpy) used throughout parser for multi-byte character accumulation and replace ad-hoc appends.",
+          "reasoning": "Provides a single, auditable place for correct growth and bounds checking, reducing chances of similar bugs elsewhere.",
+          "trade_offs": "Requires more refactoring work and testing; potential performance impact if not optimized."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 25991,
+      "output_tokens": 2765
+    },
+    "timing": {
+      "start_time": 1769081879.7442293,
+      "end_time": 1769081944.2564669,
+      "duration": 64.51223754882812
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in xmlCopyCharMultiByte (parserInternals.c), reachable from xmlParseCommentComplex/xmlParseComment (parser.c). While processing XML comments, multi-byte character copying can write past the end of a heap-allocated comment buffer due to insufficient allocation when accumulating comment text, leading to ",
+      "total_steps": 3,
+      "total_duration": 64.51223754882812,
+      "total_input_tokens": 25991,
+      "total_output_tokens": 2765,
+      "total_cost": 0.004401075000000001,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x5020000001f4\",\n    \"type\": \"heap-buffer-overflow\",\n    \"location\": \"parserInternals.c:1095 (xmlCopyCharMultiByte)\"\n  },\n  \"backtrace\": [\n    \"xmlCopyCharMultiByte at /src/libxml2/parserInternals.c:1095:12\",\n    \"xmlParseCommentComplex at /src/libxml2/parser.c:4964:2\",\n    \"xmlParseComment at /src/libxml2/parser.c:5189:5\",\n    \"xmlParseMisc at /src/libxml2/parser.c:11037:6\",\n    \"xmlParseDocument at /src/libxml2/parser.c:11118:5\",\n    \"xmlDoRead at /src/libxml2/parser.c:14809:5\",\n    \"xmlCtxtReadFile at /src/libxml2/parser.c:15062:13\",\n    \"parseAndPrintFile at /src/libxml2/xmllint.c:2364:23\",\n    \"main at /src/libxml2/xmllint.c:3776:7\",\n    \"(allocation) realloc in asan_malloc (called from xmlParseCommentComplex at /src/libxml2/parser.c:4955:28)\"\n  ],\n  \"memory_state\": \"Sanitizer shows a heap allocation of 4 bytes at [0x5020000001f0,0x5020000001f4). The failing write is at address 0x5020000001f4 (one byte past the allocated 4-byte region). The crash is a single-byte write beyond the allocated buffer (write size 1 at offset 4).\",\n  \"root_cause_hint\": \"Runtime evidence indicates xmlCopyCharMultiByte writes multi-byte character data into the comment accumulation buffer without ensuring sufficient capacity. The buffer resizing performed in xmlParseCommentComplex/xmlParseComment did an allocation (realloc) that produced a too-small buffer for the bytes subsequently written by xmlCopyCharMultiByte. Likely causes: incorrect calculation of required bytes when handling multi-byte (UTF-8/Unicode) characters and/or an off-by-one for the terminating NUL. The sanitizer backtrace shows allocation in xmlParseCommentComplex and the overflow occurs in xmlCopyCharMultiByte while copying character bytes.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Fix allocation-size calculation when accumulating comment text so it accounts for worst-case multi-byte expansion and space for the NUL terminator.\",\n      \"reasoning\": \"The overflow occurs because the allocated buffer is smaller than the bytes that xmlCopyCharMultiByte writes. Ensuring the allocator uses a conservative upper bound (e.g., up to 4 bytes per Unicode code point for UTF-8, plus one for NUL) prevents writes past the end.\",\n      \"trade_offs\": \"Slightly increased memory usage for comments (worst-case allocation). This is simple and local and keeps performance overhead minimal.\")\n    },\n    {\n      \"approach\": \"Add explicit bounds checking in xmlCopyCharMultiByte so it accepts a destination buffer length and returns an error if there is insufficient space (or resizes the buffer before writing).\",\n      \"reasoning\": \"Defensive checks in the copying routine will prevent out-of-bounds writes even if caller miscalculates sizes. It makes the function safer and centralizes the check.\",\n      \"trade_offs\": \"Requires changes to callers to handle failure/resize paths; small performance cost for checks on each character copy. More code changes but robust.\")\n    },\n    {\n      \"approach\": \"Use a growth strategy for the comment buffer (e.g., exponential doubling) and ensure after realloc the available capacity is recomputed from actual buffer size, not just a requested minimum.\",\n      \"reasoning\": \"This reduces the frequency of small reallocs and helps avoid boundary off-by-one mistakes when increasing by minimal amounts. It improves amortized performance while making it less likely that a single small growth leaves insufficient room for multi-byte inserts.\",\n      \"trade_offs\": \"May use more transient memory (over-allocation) but improves performance and reduces realloc churn. Does not replace correct size accounting; should be used together with correct calculations or bounds checks.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"tools_used\": [\"gdb\",\"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x5020000001f4\",\n    \"type\": \"heap-buffer-overflow\",\n    \"location\": \"parserInternals.c:1095 (xmlCopyCharMultiByte)\"\n  },\n  \"backtrace\": [\n    \"xmlCopyCharMultiByte at /src/libxml2/parserInternals.c:1095:12\",\n    \"xmlParseCommentComplex at /src/libxml2/parser.c:4964:2\",\n    \"xmlParseComment at /src/libxml2/parser.c:5189:5\",\n    \"xmlParseMisc at /src/libxml2/parser.c:11037:6\",\n    \"xmlParseDocument at /src/libxml2/parser.c:11118:5\",\n    \"xmlDoRead at /src/libxml2/parser.c:14809:5\",\n    \"xmlCtxtReadFile at /src/libxml2/parser.c:15062:13\",\n    \"parseAndPrintFile at /src/libxml2/xmllint.c:2364:23\",\n    \"main at /src/libxml2/xmllint.c:3776:7\",\n    \"(allocation) realloc in asan_malloc (called from xmlParseCommentComplex at /src/libxml2/parser.c:4955:28)\"\n  ],\n  \"memory_state\": \"Sanitizer shows a heap allocation of 4 bytes at [0x5020000001f0,0x5020000001f4). The failing write is at address 0x5020000001f4 (one byte past the allocated 4-byte region). The crash is a single-byte write beyond the allocated buffer (write size 1 at offset 4).\",\n  \"root_cause_hint\": \"Runtime evidence indicates xmlCopyCharMultiByte writes multi-byte character data into the comment accumulation buffer without ensuring sufficient capacity. The buffer resizing performed in xmlParseCommentComplex/xmlParseComment did an allocation (realloc) that produced a too-small buffer for the bytes subsequently written by xmlCopyCharMultiByte. Likely causes: incorrect calculation of required bytes when handling multi-byte (UTF-8/Unicode) characters and/or an off-by-one for the terminating NUL. The sanitizer backtrace shows allocation in xmlParseCommentComplex and the overflow occurs in xmlCopyCharMultiByte while copying character bytes.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Fix allocation-size calculation when accumulating comment text so it accounts for worst-case multi-byte expansion and space for the NUL terminator.\",\n      \"reasoning\": \"The overflow occurs because the allocated buffer is smaller than the bytes that xmlCopyCharMultiByte writes. Ensuring the allocator uses a conservative upper bound (e.g., up to 4 bytes per Unicode code point for UTF-8, plus one for NUL) prevents writes past the end.\",\n      \"trade_offs\": \"Slightly increased memory usage for comments (worst-case allocation). This is simple and local and keeps performance overhead minimal.\")\n    },\n    {\n      \"approach\": \"Add explicit bounds checking in xmlCopyCharMultiByte so it accepts a destination buffer length and returns an error if there is insufficient space (or resizes the buffer before writing).\",\n      \"reasoning\": \"Defensive checks in the copying routine will prevent out-of-bounds writes even if caller miscalculates sizes. It makes the function safer and centralizes the check.\",\n      \"trade_offs\": \"Requires changes to callers to handle failure/resize paths; small performance cost for checks on each character copy. More code changes but robust.\")\n    },\n    {\n      \"approach\": \"Use a growth strategy for the comment buffer (e.g., exponential doubling) and ensure after realloc the available capacity is recomputed from actual buffer size, not just a requested minimum.\",\n      \"reasoning\": \"This reduces the frequency of small reallocs and helps avoid boundary off-by-one mistakes when increasing by minimal amounts. It improves amortized performance while making it less likely that a single small growth leaves insufficient room for multi-byte inserts.\",\n      \"trade_offs\": \"May use more transient memory (over-allocation) but improves performance and reduces realloc churn. Does not replace correct size accounting; should be used together with correct calculations or bounds checks.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 38341,
+      "output_tokens": 4176
+    },
+    "timing": {
+      "start_time": 1769081944.2609627,
+      "end_time": 1769082024.938615,
+      "duration": 80.67765235900879
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in xmlCopyCharMultiByte (parserInternals.c), reachable from xmlParseCommentComplex/xmlParseComment (parser.c). While processing XML comments, multi-byte character copying can write past the end of a heap-allocated comment buffer due to insufficient allocation when accumulating comment text, leading to ",
+      "total_steps": 4,
+      "total_duration": 80.67765235900879,
+      "total_input_tokens": 38341,
+      "total_output_tokens": 4176,
+      "total_cost": 0.0053110250000000005,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"parserInternals.c\",\n  \"function_analyzed\": \"xmlCopyCharMultiByte\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"2a4fb5ac\",\n      \"message\": \"more coverage more fixes\",\n      \"changes\": \"Added defensive NULL checks (e.g., if (out == NULL) return(0)) and other input checks across parserInternals.c\",\n      \"relevance\": \"Introduced basic safeguards in xmlCopyCharMultiByte but did not change how callers allocate comment buffers; highlights defensive approach but not the allocation mismatch causing overflow.\"\n    },\n    {\n      \"hash\": \"f8e3db0\",\n      \"message\": \"Big space and tab cleanup\",\n      \"changes\": \"Whitespace cleanup only (no functional changes to xmlCopyCharMultiByte)\",\n      \"relevance\": \"Not functionally relevant to the bug but present in file history.\"\n    },\n    {\n      \"hash\": \"6843fc7\",\n      \"message\": \"Remove or annotate char casts\",\n      \"changes\": \"Added validation (val < 0) to xmlCopyCharMultiByte and xmlCopyChar; removed explicit xmlChar casts when assigning *out = val\",\n      \"relevance\": \"Improved input validation for negative values and changed type handling, but did not address multi-byte write-size vs caller allocation mismatch.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The history shows defensive checks were added in xmlCopyCharMultiByte, but the root cause appears elsewhere: callers (xmlParseCommentComplex/xmlParseComment in parser.c) accumulate comment text while assuming one byte per input character. xmlCopyCharMultiByte can write multiple UTF-8 bytes for one code point, so insufficient allocation/resize logic in the callers leads to heap-buffer-overflow.\",\n  \"fix_hints\": \"History suggests authors added input checks in xmlCopyCharMultiByte but left caller behavior unchanged. Fixes should be applied at the caller allocation/resizing site (parser.c) or by making xmlCopyCharMultiByte caller-aware (buffer-length checks). Add unit tests with multi-byte comment inputs.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Adjust allocation/resizing in xmlParseCommentComplex/xmlParseComment to account for worst-case UTF-8 expansion (up to 4 bytes per code point).\",\n      \"reasoning\": \"Minimal, local change in the caller: ensures realloc reserves enough space before multi-byte writes. It matches the real root cause (allocation underestimation).\",\n      \"trade_offs\": \"Slightly higher memory usage for comments; simple change with low API impact and easy to backport.\"\n    },\n    {\n      \"approach\": \"Change xmlCopyCharMultiByte signature to accept the available buffer size and return bytes_written or -1 on insufficient space; make callers check and realloc before writing.\",\n      \"reasoning\": \"Makes the write routine robust and prevents out-of-bounds writes regardless of caller assumptions. History shows defensive checks were added to this function, so strengthening its contract continues that pattern.\",\n      \"trade_offs\": \"API change affecting many callers, requires updating callsites across the codebase and careful testing. More invasive but safer.\"\n    },\n    {\n      \"approach\": \"Introduce a helper to compute required UTF-8 length for a given code point (or string of code points) and use it in callers to compute exact additional bytes needed before reallocating.\",\n      \"reasoning\": \"Keeps xmlCopyCharMultiByte unchanged while providing callers a precise sizing function (no over-allocation). Matches historical pattern of adding helper checks rather than broad API changes.\",\n      \"trade_offs\": \"Requires adding and using the helper in multiple places; slightly more implementation work but no API break.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "parserInternals.c",
+      "function_analyzed": "xmlCopyCharMultiByte",
+      "relevant_commits": [
+        {
+          "hash": "2a4fb5ac",
+          "message": "more coverage more fixes",
+          "changes": "Added defensive NULL checks (e.g., if (out == NULL) return(0)) and other input checks across parserInternals.c",
+          "relevance": "Introduced basic safeguards in xmlCopyCharMultiByte but did not change how callers allocate comment buffers; highlights defensive approach but not the allocation mismatch causing overflow."
+        },
+        {
+          "hash": "f8e3db0",
+          "message": "Big space and tab cleanup",
+          "changes": "Whitespace cleanup only (no functional changes to xmlCopyCharMultiByte)",
+          "relevance": "Not functionally relevant to the bug but present in file history."
+        },
+        {
+          "hash": "6843fc7",
+          "message": "Remove or annotate char casts",
+          "changes": "Added validation (val < 0) to xmlCopyCharMultiByte and xmlCopyChar; removed explicit xmlChar casts when assigning *out = val",
+          "relevance": "Improved input validation for negative values and changed type handling, but did not address multi-byte write-size vs caller allocation mismatch."
+        }
+      ],
+      "vulnerability_origin": "The history shows defensive checks were added in xmlCopyCharMultiByte, but the root cause appears elsewhere: callers (xmlParseCommentComplex/xmlParseComment in parser.c) accumulate comment text while assuming one byte per input character. xmlCopyCharMultiByte can write multiple UTF-8 bytes for one code point, so insufficient allocation/resize logic in the callers leads to heap-buffer-overflow.",
+      "fix_hints": "History suggests authors added input checks in xmlCopyCharMultiByte but left caller behavior unchanged. Fixes should be applied at the caller allocation/resizing site (parser.c) or by making xmlCopyCharMultiByte caller-aware (buffer-length checks). Add unit tests with multi-byte comment inputs.",
+      "fix_suggestions": [
+        {
+          "approach": "Adjust allocation/resizing in xmlParseCommentComplex/xmlParseComment to account for worst-case UTF-8 expansion (up to 4 bytes per code point).",
+          "reasoning": "Minimal, local change in the caller: ensures realloc reserves enough space before multi-byte writes. It matches the real root cause (allocation underestimation).",
+          "trade_offs": "Slightly higher memory usage for comments; simple change with low API impact and easy to backport."
+        },
+        {
+          "approach": "Change xmlCopyCharMultiByte signature to accept the available buffer size and return bytes_written or -1 on insufficient space; make callers check and realloc before writing.",
+          "reasoning": "Makes the write routine robust and prevents out-of-bounds writes regardless of caller assumptions. History shows defensive checks were added to this function, so strengthening its contract continues that pattern.",
+          "trade_offs": "API change affecting many callers, requires updating callsites across the codebase and careful testing. More invasive but safer."
+        },
+        {
+          "approach": "Introduce a helper to compute required UTF-8 length for a given code point (or string of code points) and use it in callers to compute exact additional bytes needed before reallocating.",
+          "reasoning": "Keeps xmlCopyCharMultiByte unchanged while providing callers a precise sizing function (no over-allocation). Matches historical pattern of adding helper checks rather than broad API changes.",
+          "trade_offs": "Requires adding and using the helper in multiple places; slightly more implementation work but no API break."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 16514,
+      "output_tokens": 2435
+    },
+    "timing": {
+      "start_time": 1769082024.9440062,
+      "end_time": 1769082177.8952184,
+      "duration": 152.95121216773987
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in xmlCopyCharMultiByte (parserInternals.c), reachable from xmlParseCommentComplex/xmlParseComment (parser.c). While processing XML comments, multi-byte character copying can write past the end of a heap-allocated comment buffer due to insufficient allocation when accumulating comment text, leading to ",
+      "total_steps": 2,
+      "total_duration": 152.95121216773987,
+      "total_input_tokens": 16514,
+      "total_output_tokens": 2435,
+      "total_cost": 0.00301605,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\"root_cause\": \"The comment accumulation path assumed one byte per input character when sizing and growing the comment buffer. xmlCopyCharMultiByte can write multiple UTF-8 bytes for a single code point, so the buffer could be under-allocated; subsequently xmlCopyCharMultiByte wrote past the end and triggered a heap-buffer-overflow.\", \"fix_approach\": \"Made minimal, targeted fixes in parser.c to ensure the comment accumulation buffer always has room for worst-case multi-byte expansion and to perform safe appends: 1) Increased the small initial allocation for short runs detected in xmlParseComment from `nbchar + 1` to `nbchar + 6` (enough for up to 4 UTF-8 bytes plus NUL and a safety byte). 2) In xmlParseCommentComplex, before appending a character, when the character may be multibyte we encode it into a small temporary buffer using xmlCopyCharMultiByte to determine exactly how many bytes will be written, ensure the destination has sufficient capacity, grow the buffer if needed, then memcpy the encoded bytes and update length. 3) Also added a conservative growth check prior to single-byte appends to ensure room for the appended byte and the terminating NUL. Changes were kept local to parser.c and avoid API changes to xmlCopyCharMultiByte.\", \"files_modified\": [\"parser.c\"], \"verification\": {\"build_success\": true, \"repro_success\": true, \"exit_code\": 0, \"asan_output\": \"No sanitizer errors detected\"}, \"confidence\": \"high\"}",
+    "parsed_output": {
+      "root_cause": "The comment accumulation path assumed one byte per input character when sizing and growing the comment buffer. xmlCopyCharMultiByte can write multiple UTF-8 bytes for a single code point, so the buffer could be under-allocated; subsequently xmlCopyCharMultiByte wrote past the end and triggered a heap-buffer-overflow.",
+      "fix_approach": "Made minimal, targeted fixes in parser.c to ensure the comment accumulation buffer always has room for worst-case multi-byte expansion and to perform safe appends: 1) Increased the small initial allocation for short runs detected in xmlParseComment from `nbchar + 1` to `nbchar + 6` (enough for up to 4 UTF-8 bytes plus NUL and a safety byte). 2) In xmlParseCommentComplex, before appending a character, when the character may be multibyte we encode it into a small temporary buffer using xmlCopyCharMultiByte to determine exactly how many bytes will be written, ensure the destination has sufficient capacity, grow the buffer if needed, then memcpy the encoded bytes and update length. 3) Also added a conservative growth check prior to single-byte appends to ensure room for the appended byte and the terminating NUL. Changes were kept local to parser.c and avoid API changes to xmlCopyCharMultiByte.",
+      "files_modified": [
+        "parser.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 1603806,
+      "output_tokens": 54654
+    },
+    "timing": {
+      "start_time": 1769082177.9004285,
+      "end_time": 1769082971.59372,
+      "duration": 793.693291425705
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-buffer-overflow in xmlCopyCharMultiByte (parserInternals.c), reachable from xmlParseCommentComplex/xmlParseComment (parser.c). While processing XML comments, multi-byte character copying can write past the end of a heap-allocated comment buffer due to insufficient allocation when accumulating comment text, leading to ",
+      "total_steps": 43,
+      "total_duration": 793.693291425705,
+      "total_input_tokens": 1603806,
+      "total_output_tokens": 54654,
+      "total_cost": 0.08316494999999997,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 1684652,
+    "output_tokens": 64030
+  },
+  "timing": {
+    "total_duration": 1091.8655314445496
+  }
+}

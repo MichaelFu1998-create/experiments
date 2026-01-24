@@ -1,0 +1,45 @@
+diff --git a/xinclude.c b/xinclude.c
+index 41ff4e5f..bf9b9bbd 100644
+--- a/xinclude.c
++++ b/xinclude.c
+@@ -2264,7 +2264,15 @@ xmlXIncludeIncludeNode(xmlXIncludeCtxtPtr ctxt, int nr) {
+ 	    xmlAddPrevSibling(cur, end);
+ 	}
+ 	xmlUnlinkNode(cur);
+-	xmlFreeNode(cur);
++		/* clear stored references to this node in the context to avoid use-after-free */
++		if (ctxt != NULL) {
++			int _i;
++			for (_i = 0; _i < ctxt->incNr; _i++) {
++				if (ctxt->incTab[_i] != NULL && ctxt->incTab[_i]->ref == cur)
++					ctxt->incTab[_i]->ref = NULL;
++			}
++		}
++		xmlFreeNode(cur);
+     } else {
+         xmlNodePtr child, next;
+ 
+@@ -2275,10 +2283,19 @@ xmlXIncludeIncludeNode(xmlXIncludeCtxtPtr ctxt, int nr) {
+ 	cur->type = XML_XINCLUDE_START;
+         /* Remove fallback children */
+         for (child = cur->children; child != NULL; child = next) {
+-            next = child->next;
+-            xmlUnlinkNode(child);
+-            xmlFreeNode(child);
+-        }
++			next = child->next;
++			xmlUnlinkNode(child);
++			/* clear any stored references to this child in the context to avoid use-after-free */
++			if (ctxt != NULL) {
++				int _i;
++				for (_i = 0; _i < ctxt->incNr; _i++) {
++					if (ctxt->incTab[_i] != NULL && ctxt->incTab[_i]->ref == child)
++						ctxt->incTab[_i]->ref = NULL;
++				}
++			}
++			xmlFreeNode(child);
++		}
++
+ 	end = xmlNewDocNode(cur->doc, cur->ns, cur->name, NULL);
+ 	if (end == NULL) {
+ 	    xmlXIncludeErr(ctxt, ctxt->incTab[nr]->ref,

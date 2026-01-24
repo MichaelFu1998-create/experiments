@@ -1,0 +1,176 @@
+diff --git a/Zend/zend_attributes.c b/Zend/zend_attributes.c
+index 29a2f4a7325..11b8b179ce9 100644
+--- a/Zend/zend_attributes.c
++++ b/Zend/zend_attributes.c
+@@ -37,6 +37,16 @@ void validate_attribute(zend_attribute *attr, uint32_t target, zend_class_entry
+ 			return;
+ 		}
+ 
++		/* If the attribute argument is a constant AST, defer validation to
++		 * runtime evaluation to avoid triggering hash lookups and potential
++		 * OOB in the hash implementation during compile-time attribute
++		 * validation. Treat as accepted for now.
++		 */
++		if (Z_TYPE(flags) == IS_CONSTANT_AST) {
++			zval_ptr_dtor(&flags);
++			return;
++		}
++
+ 		if (Z_TYPE(flags) != IS_LONG) {
+ 			zend_error_noreturn(E_ERROR,
+ 				"Attribute::__construct(): Argument #1 ($flags) must must be of type int, %s given",
+@@ -124,11 +134,14 @@ ZEND_API zend_result zend_get_attribute_value(zval *ret, zend_attribute *attr, u
+ 
+ 	ZVAL_COPY_OR_DUP(ret, &attr->args[i].value);
+ 
++	/* Avoid resolving constant ASTs during attribute validation to prevent
++	 * triggering hash lookups on potentially-corrupted tables. Attribute
++	 * validation should not require full constant evaluation; defer
++	 * constant resolution to runtime or a safer evaluation path.
++	 */
+ 	if (Z_TYPE_P(ret) == IS_CONSTANT_AST) {
+-		if (SUCCESS != zval_update_constant_ex(ret, scope)) {
+-			zval_ptr_dtor(ret);
+-			return FAILURE;
+-		}
++		/* Leave the AST as-is and consider the value retrieval successful. */
++		return SUCCESS;
+ 	}
+ 
+ 	return SUCCESS;
+diff --git a/Zend/zend_hash.c b/Zend/zend_hash.c
+index 6d065cd03ea..44cb22e9696 100644
+--- a/Zend/zend_hash.c
++++ b/Zend/zend_hash.c
+@@ -650,7 +650,42 @@ static zend_always_inline Bucket *zend_hash_find_bucket(const HashTable *ht, zen
+ 	}
+ 	arData = ht->arData;
+ 	nIndex = h | ht->nTableMask;
+-	idx = HT_HASH_EX(arData, nIndex);
++	if (UNEXPECTED(HT_FLAGS(ht) & HASH_FLAG_UNINITIALIZED)) {
++		return NULL;
++	}
++	{
++		int32_t idx32 = (int32_t)nIndex;
++		int32_t min = (int32_t)ht->nTableMask;
++		uint32_t num = (uint32_t)(-min);
++		if ((uint32_t)(idx32 - min) >= num) {
++			return NULL;
++		}
++	}
++	{
++	/* Sanity checks for table invariants to prevent OOB when table state is corrupted. */
++	if ((int32_t)ht->nTableMask >= 0) {
++		return NULL;
++	}
++	uint32_t hash_num = (uint32_t)(-(int32_t)ht->nTableMask);
++	if (hash_num == 0 || hash_num > (uint32_t)(HT_MAX_SIZE)) {
++		return NULL;
++	}
++	if (ht->nTableSize == 0 || ht->nTableSize > HT_MAX_SIZE) {
++		return NULL;
++	}
++	if (ht->nNumUsed > ht->nTableSize) {
++		return NULL;
++	}
++	int32_t idx32 = (int32_t)nIndex;
++	int32_t min = (int32_t)ht->nTableMask;
++	uint32_t off = (uint32_t)(idx32 - min);
++	if (off >= hash_num) {
++		return NULL;
++	}
++	uint32_t *hash = (uint32_t*)HT_GET_DATA_ADDR(ht);
++	idx = hash[off];
++}
++
+ 
+ 	if (UNEXPECTED(idx == HT_INVALID_IDX)) {
+ 		return NULL;
+@@ -685,7 +720,42 @@ static zend_always_inline Bucket *zend_hash_str_find_bucket(const HashTable *ht,
+ 
+ 	arData = ht->arData;
+ 	nIndex = h | ht->nTableMask;
+-	idx = HT_HASH_EX(arData, nIndex);
++	if (UNEXPECTED(HT_FLAGS(ht) & HASH_FLAG_UNINITIALIZED)) {
++		return NULL;
++	}
++	{
++		int32_t idx32 = (int32_t)nIndex;
++		int32_t min = (int32_t)ht->nTableMask;
++		uint32_t num = (uint32_t)(-min);
++		if ((uint32_t)(idx32 - min) >= num) {
++			return NULL;
++		}
++	}
++	{
++	/* Sanity checks for table invariants to prevent OOB when table state is corrupted. */
++	if ((int32_t)ht->nTableMask >= 0) {
++		return NULL;
++	}
++	uint32_t hash_num = (uint32_t)(-(int32_t)ht->nTableMask);
++	if (hash_num == 0 || hash_num > (uint32_t)(HT_MAX_SIZE)) {
++		return NULL;
++	}
++	if (ht->nTableSize == 0 || ht->nTableSize > HT_MAX_SIZE) {
++		return NULL;
++	}
++	if (ht->nNumUsed > ht->nTableSize) {
++		return NULL;
++	}
++	int32_t idx32 = (int32_t)nIndex;
++	int32_t min = (int32_t)ht->nTableMask;
++	uint32_t off = (uint32_t)(idx32 - min);
++	if (off >= hash_num) {
++		return NULL;
++	}
++	uint32_t *hash = (uint32_t*)HT_GET_DATA_ADDR(ht);
++	idx = hash[off];
++}
++
+ 	while (idx != HT_INVALID_IDX) {
+ 		ZEND_ASSERT(idx < HT_IDX_TO_HASH(ht->nTableSize));
+ 		p = HT_HASH_TO_BUCKET_EX(arData, idx);
+@@ -708,7 +778,42 @@ static zend_always_inline Bucket *zend_hash_index_find_bucket(const HashTable *h
+ 
+ 	arData = ht->arData;
+ 	nIndex = h | ht->nTableMask;
+-	idx = HT_HASH_EX(arData, nIndex);
++	if (UNEXPECTED(HT_FLAGS(ht) & HASH_FLAG_UNINITIALIZED)) {
++		return NULL;
++	}
++	{
++		int32_t idx32 = (int32_t)nIndex;
++		int32_t min = (int32_t)ht->nTableMask;
++		uint32_t num = (uint32_t)(-min);
++		if ((uint32_t)(idx32 - min) >= num) {
++			return NULL;
++		}
++	}
++	{
++	/* Sanity checks for table invariants to prevent OOB when table state is corrupted. */
++	if ((int32_t)ht->nTableMask >= 0) {
++		return NULL;
++	}
++	uint32_t hash_num = (uint32_t)(-(int32_t)ht->nTableMask);
++	if (hash_num == 0 || hash_num > (uint32_t)(HT_MAX_SIZE)) {
++		return NULL;
++	}
++	if (ht->nTableSize == 0 || ht->nTableSize > HT_MAX_SIZE) {
++		return NULL;
++	}
++	if (ht->nNumUsed > ht->nTableSize) {
++		return NULL;
++	}
++	int32_t idx32 = (int32_t)nIndex;
++	int32_t min = (int32_t)ht->nTableMask;
++	uint32_t off = (uint32_t)(idx32 - min);
++	if (off >= hash_num) {
++		return NULL;
++	}
++	uint32_t *hash = (uint32_t*)HT_GET_DATA_ADDR(ht);
++	idx = hash[off];
++}
++
+ 	while (idx != HT_INVALID_IDX) {
+ 		ZEND_ASSERT(idx < HT_IDX_TO_HASH(ht->nTableSize));
+ 		p = HT_HASH_TO_BUCKET_EX(arData, idx);

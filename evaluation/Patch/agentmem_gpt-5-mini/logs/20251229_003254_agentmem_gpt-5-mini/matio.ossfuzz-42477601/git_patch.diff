@@ -1,0 +1,39 @@
+diff --git a/src/mat4.c b/src/mat4.c
+index 601a3d6..9fc6064 100644
+--- a/src/mat4.c
++++ b/src/mat4.c
+@@ -908,15 +908,25 @@ Mat_VarReadNextInfo4(mat_t *mat)
+         Mat_VarFree(matvar);
+         return NULL;
+     }
+-    matvar->name = (char*)malloc(tmp);
+-    if ( NULL == matvar->name ) {
+-        Mat_VarFree(matvar);
+-        return NULL;
+-    }
+-    readresult = fread(matvar->name,1,tmp,(FILE*)mat->fp);
+-    if ( tmp != readresult ) {
+-        Mat_VarFree(matvar);
+-        return NULL;
++    {
++        size_t name_len = (size_t)tmp;
++        /* Guard against absurd lengths (prevent wrap on addition) */
++        if ( name_len >= (SIZE_MAX) ) {
++            Mat_VarFree(matvar);
++            return NULL;
++        }
++        matvar->name = (char*)malloc(name_len + 1);
++        if ( NULL == matvar->name ) {
++            Mat_VarFree(matvar);
++            return NULL;
++        }
++        readresult = fread(matvar->name,1,name_len,(FILE*)mat->fp);
++        if ( name_len != readresult ) {
++            Mat_VarFree(matvar);
++            return NULL;
++        }
++        /* Ensure NUL-termination so callers can safely treat name as C string */
++        matvar->name[name_len] = '\0';
+     }
+ 
+     matvar->internal->datapos = ftell((FILE*)mat->fp);

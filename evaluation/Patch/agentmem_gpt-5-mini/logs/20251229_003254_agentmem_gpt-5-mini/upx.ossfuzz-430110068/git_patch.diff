@@ -1,0 +1,72 @@
+diff --git a/src/p_lx_elf.cpp b/src/p_lx_elf.cpp
+index b57dfe5a..4afe18f8 100644
+--- a/src/p_lx_elf.cpp
++++ b/src/p_lx_elf.cpp
+@@ -8644,8 +8644,9 @@ Elf32_Sym const *PackLinuxElf32::elf_lookup(char const *name) const
+ {
+     if (hashtab && dynsym && dynstr) {
+         unsigned const n_bucket = get_te32(&hashtab[0]);
+-        unsigned const *const buckets = &hashtab[2];
+-        unsigned const *const chains = &buckets[n_bucket];
++            unsigned const n_chain = get_te32(&hashtab[1]);
++            unsigned const *const buckets = &hashtab[2];
++            unsigned const *const chains = &buckets[n_bucket];
+         // Find the end of DT_HASH and DT_DYNSYM. Perhaps elf_find_table_size()
+         // depends on too many valid input values?
+         void const *l_hash = nullptr, *l_sym = nullptr;
+@@ -8667,16 +8668,31 @@ Elf32_Sym const *PackLinuxElf32::elf_lookup(char const *name) const
+             unsigned n_visit = 0;
+             unsigned si;
+             if (l_hash <= &buckets[m])
+-                throwCantPack("bad DT_HASH %u", m);
+-            for (si= get_te32(&buckets[m]); si; si = get_te32(&chains[si])) {
++                return nullptr;
++            for (si = get_te32(&buckets[m]); si; ) {
+                 if (l_sym <= &dynsym[si])
+-                    throwCantPack("bad DT_HASH chain %d\n", si);
++                    return nullptr;
+                 char const *const p= get_dynsym_name(si, (unsigned)-1);
+                 if (p && 0==strcmp(name, p))
+                     return &dynsym[si];
+                 if (l_sym <= &dynsym[n_visit++])
+-                    throwCantPack("circular DT_HASH chain %d\n", si);
+-            }
++                    return nullptr;
++            
++                if (si < n_chain) {
++                    const char *ptr = (const char *)&chains[si];
++                    const char *file_end = (const char *)file_image.getVoidPtr() + file_size;
++                    if (l_hash) {
++                        if (ptr + sizeof(unsigned) > (const char *)l_hash)
++                            return nullptr;
++                    } else {
++                        if (ptr + sizeof(unsigned) > file_end)
++                            return nullptr;
++                    }
++                    unsigned const next_si = get_te32(&chains[si]);
++                    si = next_si;
++                } else {
++                    si = 0;
++                }}
+         }
+     }
+     if (gashtab && dynsym && dynstr) {
+@@ -8768,15 +8784,15 @@ Elf64_Sym const *PackLinuxElf64::elf_lookup(char const *name) const
+             unsigned n_visit = 0;
+             unsigned si;
+             if (l_hash <= &buckets[m])
+-                throwCantPack("bad DT_HASH %u", m);
++                return nullptr;
+             for (si= get_te32(&buckets[m]); si; si = get_te32(&chains[si])) {
+                 if (l_sym <= &dynsym[si])
+-                    throwCantPack("bad DT_HASH chain %d\n", si);
++                    return nullptr;
+                 char const *const p= get_dynsym_name(si, (unsigned)-1);
+                 if (p && 0==strcmp(name, p))
+                     return &dynsym[si];
+                 if (l_sym <= &dynsym[n_visit++])
+-                    throwCantPack("circular DT_HASH chain %d\n", si);
++                    return nullptr;
+             }
+         }
+     }

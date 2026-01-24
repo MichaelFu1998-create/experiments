@@ -1,0 +1,209 @@
+{
+  "instance_id": "matio.ossfuzz-42477894",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"src/matio/src/mat5.c\",\n      \"line\": 3951,\n      \"message\": \"CodeQL (memory) - suspicious array access with potentially unsafe index (multiple occurrences reported in this file)\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"src/matio/src/mat5.c\",\n      \"line\": 4915,\n      \"message\": \"ASan reported stack-buffer-overflow in Mat_VarReadNextInfo5: 4-byte read past end of stack buffer 'uncomp_buf' when parsing variable metadata\",\n      \"severity\": \"error\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"Static (CodeQL) and dynamic (ASan) signals point to unsafe indexed/bulk reads in mat5.c: Mat_VarReadNextInfo5 uses a fixed-size stack buffer 'uncomp_buf' and performs reads derived from parsed file lengths without adequate bounds validation, allowing a 4-byte OOB read.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add explicit bounds checks before any read from uncomp_buf (verify decompressed/uncomp_buf length >= required offset+read_size) and reject malformed inputs.\",\n      \"reasoning\": \"Small, targeted change that prevents OOB accesses by validating sizes derived from file headers before use.\",\n      \"trade_offs\": \"May cause malformed or truncated MAT files to be rejected rather than partially parsed; minimal performance cost.\")\n    },\n    {\n      \"approach\": \"Avoid fixed small stack buffers for variable-sized data: allocate uncomp_buf dynamically to the exact required size (with sane upper limit) or use safe API that enforces bounds.\",\n      \"reasoning\": \"Eliminates stack overflows and allows handling larger but bounded data safely.\",\n      \"trade_offs\": \"Increases heap usage and adds allocation/failure handling complexity; must enforce an absolute maximum to avoid excessive memory use.\"\n    },\n    {\n      \"approach\": \"Refactor parsing to centralize length checks and canonicalize metadata values (reject impossible sizes), and add unit/fuzz tests exercising boundary cases.\",\n      \"reasoning\": \"Structural fix that prevents similar bugs across parsing codepaths and improves future maintainability.\",\n      \"trade_offs\": \"Larger refactor effort and potential for regressions; however yields stronger long-term safety.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "raw": "{\n  \"analysis_type\": \"memory\",\n  \"findings\": [\n    {\n      \"file\": \"src/matio/src/mat5.c\",\n      \"line\": 3951,\n      \"message\": \"CodeQL (memory) - suspicious array access with potentially unsafe index (multiple occurrences reported in this file)\",\n      \"severity\": \"warning\"\n    },\n    {\n      \"file\": \"src/matio/src/mat5.c\",\n      \"line\": 4915,\n      \"message\": \"ASan reported stack-buffer-overflow in Mat_VarReadNextInfo5: 4-byte read past end of stack buffer 'uncomp_buf' when parsing variable metadata\",\n      \"severity\": \"error\"\n    }\n  ],\n  \"dataflow_summary\": \"\",\n  \"key_insight\": \"Static (CodeQL) and dynamic (ASan) signals point to unsafe indexed/bulk reads in mat5.c: Mat_VarReadNextInfo5 uses a fixed-size stack buffer 'uncomp_buf' and performs reads derived from parsed file lengths without adequate bounds validation, allowing a 4-byte OOB read.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add explicit bounds checks before any read from uncomp_buf (verify decompressed/uncomp_buf length >= required offset+read_size) and reject malformed inputs.\",\n      \"reasoning\": \"Small, targeted change that prevents OOB accesses by validating sizes derived from file headers before use.\",\n      \"trade_offs\": \"May cause malformed or truncated MAT files to be rejected rather than partially parsed; minimal performance cost.\")\n    },\n    {\n      \"approach\": \"Avoid fixed small stack buffers for variable-sized data: allocate uncomp_buf dynamically to the exact required size (with sane upper limit) or use safe API that enforces bounds.\",\n      \"reasoning\": \"Eliminates stack overflows and allows handling larger but bounded data safely.\",\n      \"trade_offs\": \"Increases heap usage and adds allocation/failure handling complexity; must enforce an absolute maximum to avoid excessive memory use.\"\n    },\n    {\n      \"approach\": \"Refactor parsing to centralize length checks and canonicalize metadata values (reject impossible sizes), and add unit/fuzz tests exercising boundary cases.\",\n      \"reasoning\": \"Structural fix that prevents similar bugs across parsing codepaths and improves future maintainability.\",\n      \"trade_offs\": \"Larger refactor effort and potential for regressions; however yields stronger long-term safety.\"\n    }\n  ]\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 80088,
+      "output_tokens": 4411
+    },
+    "timing": {
+      "start_time": 1769090128.9599335,
+      "end_time": 1769090227.9413128,
+      "duration": 98.98137927055359
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nA stack-buffer-overflow in Mat_VarReadNextInfo5 (src/matio/src/mat5.c): while parsing MAT5 variable metadata the code reads values derived from a small stack-allocated buffer (uncomp_buf) and performs a 4-byte read past the end of that buffer. This out-of-bounds access can corrupt stack memory when processing malformed or mali",
+      "total_steps": 6,
+      "total_duration": 98.98137927055359,
+      "total_input_tokens": 80088,
+      "total_output_tokens": 4411,
+      "total_cost": 0.0096988,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\", \"ubsan\"],\n  \"crash_info\": {\n    \"address\": \"0x7f5417300080\",\n    \"type\": \"stack-buffer-overflow\",\n    \"location\": \"src/matio/src/mat5.c:4915\"\n  },\n  \"backtrace\": [\n    \"Mat_VarReadNextInfo5 at /src/matio/src/mat5.c:4915:47\",\n    \"main at /src/matio/tools/matdump.c:944:31\",\n    \"__libc_start_main at /build/glibc-.../csu/libc-start.c:308:16\",\n    \"_start at /src/matio/tools/.libs/matdump+0x3859d\",\n    \"(also note earlier frame) Mat_VarReadNextInfo5 at /src/matio/src/mat5.c:4788\"\n  ],\n  \"memory_state\": \"The stack frame for Mat_VarReadNextInfo5 contains a stack-allocated buffer 'uncomp_buf' spanning offsets [64,128) (64 bytes). The failing read occurs at address corresponding to offset 128 \u2014 a 4-byte read performed immediately past the end of uncomp_buf (i.e. one 4-byte read beyond the 64-byte buffer), causing a stack-buffer-overflow.\",\n  \"root_cause_hint\": \"Runtime traces (ASan/UBSan + GDB fallback) show the function parses MAT5 variable metadata into a small stack buffer (uncomp_buf) and then reads a 4-byte value derived from that buffer without verifying that 4 bytes are available. Malformed or inconsistent metadata allows the code to compute/read past the end of the stack buffer, producing the observed OOB read.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Add explicit bounds checks before any multi-byte read from uncomp_buf (ensure remaining_bytes >= 4 before reading a 32-bit value).\",\n      \"reasoning\": \"The crash is a simple out-of-bounds read \u2014 a check that remaining bytes are sufficient before each read will prevent the overflow with minimal code changes.\",\n      \"trade_offs\": \"Small runtime overhead from additional checks; requires auditing all code paths that read from uncomp_buf to ensure none are missed.\"\n    },\n    {\n      \"approach\": \"Avoid using a fixed small stack buffer: allocate uncomp_buf on the heap sized based on validated metadata (with an enforced upper bound), and verify allocation and lengths prior to reads.\",\n      \"reasoning\": \"Moving to a heap buffer and sizing it after validating header-derived lengths avoids stack overflows and supports larger legitimate data. Enforcing a maximum cap prevents excessive allocation from malicious files.\",\n      \"trade_offs\": \"More complex logic, additional heap allocation overhead, and must carefully validate/limit sizes to avoid DoS via huge allocations.\"\n    },\n    {\n      \"approach\": \"Fail fast on malformed metadata: validate the metadata/length fields extracted from the MAT file before attempting decompression or parsing, and return a controlled error for inconsistent lengths.\",\n      \"reasoning\": \"Rejecting inconsistent or obviously malicious input early prevents subsequent parsing from reaching the unsafe read site, keeping code simple and safe.\",\n      \"trade_offs\": \"May reject some borderline-but-valid files if validation is too strict; requires clear spec-aligned checks to avoid false positives.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan"
+      ],
+      "crash_info": {
+        "address": "0x7f5417300080",
+        "type": "stack-buffer-overflow",
+        "location": "src/matio/src/mat5.c:4915"
+      },
+      "backtrace": [
+        "Mat_VarReadNextInfo5 at /src/matio/src/mat5.c:4915:47",
+        "main at /src/matio/tools/matdump.c:944:31",
+        "__libc_start_main at /build/glibc-.../csu/libc-start.c:308:16",
+        "_start at /src/matio/tools/.libs/matdump+0x3859d",
+        "(also note earlier frame) Mat_VarReadNextInfo5 at /src/matio/src/mat5.c:4788"
+      ],
+      "memory_state": "The stack frame for Mat_VarReadNextInfo5 contains a stack-allocated buffer 'uncomp_buf' spanning offsets [64,128) (64 bytes). The failing read occurs at address corresponding to offset 128 \u2014 a 4-byte read performed immediately past the end of uncomp_buf (i.e. one 4-byte read beyond the 64-byte buffer), causing a stack-buffer-overflow.",
+      "root_cause_hint": "Runtime traces (ASan/UBSan + GDB fallback) show the function parses MAT5 variable metadata into a small stack buffer (uncomp_buf) and then reads a 4-byte value derived from that buffer without verifying that 4 bytes are available. Malformed or inconsistent metadata allows the code to compute/read past the end of the stack buffer, producing the observed OOB read.",
+      "fix_suggestions": [
+        {
+          "approach": "Add explicit bounds checks before any multi-byte read from uncomp_buf (ensure remaining_bytes >= 4 before reading a 32-bit value).",
+          "reasoning": "The crash is a simple out-of-bounds read \u2014 a check that remaining bytes are sufficient before each read will prevent the overflow with minimal code changes.",
+          "trade_offs": "Small runtime overhead from additional checks; requires auditing all code paths that read from uncomp_buf to ensure none are missed."
+        },
+        {
+          "approach": "Avoid using a fixed small stack buffer: allocate uncomp_buf on the heap sized based on validated metadata (with an enforced upper bound), and verify allocation and lengths prior to reads.",
+          "reasoning": "Moving to a heap buffer and sizing it after validating header-derived lengths avoids stack overflows and supports larger legitimate data. Enforcing a maximum cap prevents excessive allocation from malicious files.",
+          "trade_offs": "More complex logic, additional heap allocation overhead, and must carefully validate/limit sizes to avoid DoS via huge allocations."
+        },
+        {
+          "approach": "Fail fast on malformed metadata: validate the metadata/length fields extracted from the MAT file before attempting decompression or parsing, and return a controlled error for inconsistent lengths.",
+          "reasoning": "Rejecting inconsistent or obviously malicious input early prevents subsequent parsing from reaching the unsafe read site, keeping code simple and safe.",
+          "trade_offs": "May reject some borderline-but-valid files if validation is too strict; requires clear spec-aligned checks to avoid false positives."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 27447,
+      "output_tokens": 2733
+    },
+    "timing": {
+      "start_time": 1769090227.947745,
+      "end_time": 1769090415.1470416,
+      "duration": 187.1992964744568
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nA stack-buffer-overflow in Mat_VarReadNextInfo5 (src/matio/src/mat5.c): while parsing MAT5 variable metadata the code reads values derived from a small stack-allocated buffer (uncomp_buf) and performs a 4-byte read past the end of that buffer. This out-of-bounds access can corrupt stack memory when processing malformed or mali",
+      "total_steps": 3,
+      "total_duration": 187.1992964744568,
+      "total_input_tokens": 27447,
+      "total_output_tokens": 2733,
+      "total_cost": 0.003802275,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\"file_analyzed\":\"src/matio/src/mat5.c\",\"function_analyzed\":\"Mat_VarReadNextInfo5\",\"relevant_commits\":[{\"hash\":\"ffb13d6\",\"message\":\"Check read success\",\"changes\":\"Added a check after fread(&nBytes,...) to return NULL when fread fails.\",\"relevance\":\"Ensures immediate read failure is handled; addresses one source of invalid downstream data but does not prevent out-of-bounds access on uncomp_buf.\"},{\"hash\":\"ff66349\",\"message\":\"Fix integer multiplication overflow\",\"changes\":\"Introduced SafeMul to check multiplication when allocating matvar->dims and added allocation failure handling.\",\"relevance\":\"Adds protection against integer overflow during allocations (prevents overly large heap allocs). Pattern shows project uses SafeMul to mitigate overflow risks.\"},{\"hash\":\"5b26fd6\",\"message\":\"Fix integer addition overflow\",\"changes\":\"Added check 'if (nBytes > INT32_MAX - 8 - fpos) return NULL' to prevent addition overflow on nBytes/fpos arithmetic.\",\"relevance\":\"Directly bounds nBytes to avoid integer overflow influencing subsequent buffer reads; most directly related to preventing malformed size values that can lead to out-of-bounds access.\"}],\"vulnerability_origin\":\"Root cause: insufficient bounds validation when parsing MAT5 variable metadata in Mat_VarReadNextInfo5. The code reads indices and multi-byte values from a small stack buffer (uncomp_buf) without verifying that the buffer contains the expected number of bytes (and without adequate nBytes/bytesread validation), allowing a 4-byte read past the end for malformed inputs. Historical commits added overflow checks and read-success checks but did not fully validate uncomp_buf accesses before the out-of-bounds read.\",\"fix_hints\":\"Follow existing patterns: (1) add integer overflow checks (SafeMul/limits) before size math; (2) validate bytesread/nBytes against the number of bytes required for each read from uncomp_buf before accessing uncomp_buf[]; (3) avoid fixed small stack buffers for variable-length data \u2014 allocate based on validated size or use bounded reads.\",\"fix_suggestions\":[{\"approach\":\"Add explicit bounds checks before every uncomp_buf access (ensure bytesread >= required_offset+needed_bytes) and return error on failure.\",\"reasoning\":\"Minimal invasive change consistent with prior commits that add validation. Directly prevents any reads past uncomp_buf length.\",\"trade_offs\":\"May abort parsing earlier for malformed files; low runtime cost and minimal code changes.\"},{\"approach\":\"Use dynamic allocation for the uncompressed buffer sized from validated nBytes (with SafeMul/cap), instead of a small fixed stack buffer.\",\"reasoning\":\"Eliminates stack buffer size limits and aligns with existing SafeMul usage for allocations; safe for large but validated sizes and prevents stack overflows.\",\"trade_offs\":\"Requires heap allocation and careful caps to avoid excessive memory use; slightly more complex error handling on allocation failure.\"},{\"approach\":\"Combine defensive parsing helpers: centralize reads into functions that check remaining bytes and perform endian/size conversions, returning errors instead of direct array accesses.\",\"reasoning\":\"Improves maintainability and reduces future mistakes by consolidating safety checks (fits project pattern of central helper use).\",\"trade_offs\":\"Refactor cost is higher but yields long-term robustness; requires thorough testing.\"}]}",
+    "parsed_output": {
+      "file_analyzed": "src/matio/src/mat5.c",
+      "function_analyzed": "Mat_VarReadNextInfo5",
+      "relevant_commits": [
+        {
+          "hash": "ffb13d6",
+          "message": "Check read success",
+          "changes": "Added a check after fread(&nBytes,...) to return NULL when fread fails.",
+          "relevance": "Ensures immediate read failure is handled; addresses one source of invalid downstream data but does not prevent out-of-bounds access on uncomp_buf."
+        },
+        {
+          "hash": "ff66349",
+          "message": "Fix integer multiplication overflow",
+          "changes": "Introduced SafeMul to check multiplication when allocating matvar->dims and added allocation failure handling.",
+          "relevance": "Adds protection against integer overflow during allocations (prevents overly large heap allocs). Pattern shows project uses SafeMul to mitigate overflow risks."
+        },
+        {
+          "hash": "5b26fd6",
+          "message": "Fix integer addition overflow",
+          "changes": "Added check 'if (nBytes > INT32_MAX - 8 - fpos) return NULL' to prevent addition overflow on nBytes/fpos arithmetic.",
+          "relevance": "Directly bounds nBytes to avoid integer overflow influencing subsequent buffer reads; most directly related to preventing malformed size values that can lead to out-of-bounds access."
+        }
+      ],
+      "vulnerability_origin": "Root cause: insufficient bounds validation when parsing MAT5 variable metadata in Mat_VarReadNextInfo5. The code reads indices and multi-byte values from a small stack buffer (uncomp_buf) without verifying that the buffer contains the expected number of bytes (and without adequate nBytes/bytesread validation), allowing a 4-byte read past the end for malformed inputs. Historical commits added overflow checks and read-success checks but did not fully validate uncomp_buf accesses before the out-of-bounds read.",
+      "fix_hints": "Follow existing patterns: (1) add integer overflow checks (SafeMul/limits) before size math; (2) validate bytesread/nBytes against the number of bytes required for each read from uncomp_buf before accessing uncomp_buf[]; (3) avoid fixed small stack buffers for variable-length data \u2014 allocate based on validated size or use bounded reads.",
+      "fix_suggestions": [
+        {
+          "approach": "Add explicit bounds checks before every uncomp_buf access (ensure bytesread >= required_offset+needed_bytes) and return error on failure.",
+          "reasoning": "Minimal invasive change consistent with prior commits that add validation. Directly prevents any reads past uncomp_buf length.",
+          "trade_offs": "May abort parsing earlier for malformed files; low runtime cost and minimal code changes."
+        },
+        {
+          "approach": "Use dynamic allocation for the uncompressed buffer sized from validated nBytes (with SafeMul/cap), instead of a small fixed stack buffer.",
+          "reasoning": "Eliminates stack buffer size limits and aligns with existing SafeMul usage for allocations; safe for large but validated sizes and prevents stack overflows.",
+          "trade_offs": "Requires heap allocation and careful caps to avoid excessive memory use; slightly more complex error handling on allocation failure."
+        },
+        {
+          "approach": "Combine defensive parsing helpers: centralize reads into functions that check remaining bytes and perform endian/size conversions, returning errors instead of direct array accesses.",
+          "reasoning": "Improves maintainability and reduces future mistakes by consolidating safety checks (fits project pattern of central helper use).",
+          "trade_offs": "Refactor cost is higher but yields long-term robustness; requires thorough testing."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 15547,
+      "output_tokens": 1646
+    },
+    "timing": {
+      "start_time": 1769090415.1503525,
+      "end_time": 1769090511.968864,
+      "duration": 96.81851148605347
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nA stack-buffer-overflow in Mat_VarReadNextInfo5 (src/matio/src/mat5.c): while parsing MAT5 variable metadata the code reads values derived from a small stack-allocated buffer (uncomp_buf) and performs a 4-byte read past the end of that buffer. This out-of-bounds access can corrupt stack memory when processing malformed or mali",
+      "total_steps": 2,
+      "total_duration": 96.81851148605347,
+      "total_input_tokens": 15547,
+      "total_output_tokens": 1646,
+      "total_cost": 0.002206975,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"Mat_VarReadNextInfo5 used a small fixed-size stack buffer (uncomp_buf) and parsed header-derived lengths without verifying that subsequent multi-byte reads (e.g., dimensions or names) fit into that buffer, allowing reads past the end of uncomp_buf and causing a 4-byte stack-buffer-overflow.\",\n  \"fix_approach\": \"Added an explicit bounds check in src/matio/src/mat5.c before using dims read into the small stack buffer: after computing matvar->rank we verify the rank is within the capacity of uncomp_buf (unless a separately allocated 'dims' buffer was returned). If the rank is invalid/too large, the function fails gracefully and avoids further reads from uncomp_buf. This is a minimal targeted change that prevents out-of-bounds reads while preserving existing behavior for valid inputs.\",\n  \"files_modified\": [\"src/matio/src/mat5.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "Mat_VarReadNextInfo5 used a small fixed-size stack buffer (uncomp_buf) and parsed header-derived lengths without verifying that subsequent multi-byte reads (e.g., dimensions or names) fit into that buffer, allowing reads past the end of uncomp_buf and causing a 4-byte stack-buffer-overflow.",
+      "fix_approach": "Added an explicit bounds check in src/matio/src/mat5.c before using dims read into the small stack buffer: after computing matvar->rank we verify the rank is within the capacity of uncomp_buf (unless a separately allocated 'dims' buffer was returned). If the rank is invalid/too large, the function fails gracefully and avoids further reads from uncomp_buf. This is a minimal targeted change that prevents out-of-bounds reads while preserving existing behavior for valid inputs.",
+      "files_modified": [
+        "src/matio/src/mat5.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 688316,
+      "output_tokens": 12401
+    },
+    "timing": {
+      "start_time": 1769090511.9720845,
+      "end_time": 1769090727.9882326,
+      "duration": 216.01614809036255
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/matio\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/matio`. Consider the following issue description:\n\n<issue_description>\nA stack-buffer-overflow in Mat_VarReadNextInfo5 (src/matio/src/mat5.c): while parsing MAT5 variable metadata the code reads values derived from a small stack-allocated buffer (uncomp_buf) and performs a 4-byte read past the end of that buffer. This out-of-bounds access can corrupt stack memory when processing malformed or mali",
+      "total_steps": 25,
+      "total_duration": 216.01614809036255,
+      "total_input_tokens": 688316,
+      "total_output_tokens": 12401,
+      "total_cost": 0.030429299999999996,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 811398,
+    "output_tokens": 21191
+  },
+  "timing": {
+    "total_duration": 599.0438315868378
+  }
+}

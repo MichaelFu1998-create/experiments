@@ -1,0 +1,89 @@
+diff --git a/src/string.c b/src/string.c
+index 5044c1d50..dd3b01425 100644
+--- a/src/string.c
++++ b/src/string.c
+@@ -602,33 +602,70 @@ mrb_memsearch_ss(const unsigned char *xs, long m, const unsigned char *ys, long
+   const bitint first = MASK1 * (uint8_t)xs[0];
+   const bitint last  = MASK1 * (uint8_t)xs[m-1];
+ 
++  /* pointer to haystack interpreted as words */
+   bitint *s0 = (bitint*)(ys);
+   bitint *s1 = (bitint*)(ys+m-1);
+ 
+-  for (mrb_int i=0; i < n; i+=sizeof(bitint), s0++, s1++) {
+-    const bitint eq = (*s0 ^ first) | (*s1 ^ last);
+-    bitint zeros = ((~eq & MASK2) + MASK1) & (~eq & MASK3);
+-    size_t j = 0;
++  /*
++   * Prevent word-sized reads past the end of the haystack (ys).
++   * Process bulk using word accesses only while a full word is
++   * available; then scan the tail byte-by-byte.
++   */
++  {
++    const mrb_int bw = (mrb_int)sizeof(bitint);
++    mrb_int i = 0;
++
++    if (m < 1 || m > n) return -1;
++    if (m == 1) {
++      /* handled elsewhere, but keep safe fallback */
++      for (i = 0; i < n; ++i) if (ys[i] == xs[0]) return i;
++      return -1;
++    }
+ 
+-    while (zeros) {
+-      if (zeros & MASK4) {
+-        const char* substr = (char*)s0 + j + 1;
+-        if (memcmp(substr, xs + 1, m - 2) == 0) {
+-          return i + j;
+-        }
++    if (n < bw) {
++      /* haystack shorter than word size: fallback to safe byte-wise scan */
++      for (i = 0; i <= n - m; ++i) {
++        if (ys[i] == xs[0] && ys[i + m - 1] == xs[m - 1] &&
++            memcmp(ys + i + 1, xs + 1, m - 2) == 0) return i;
+       }
++      return -1;
++    }
++
++    /* limit is the last index where a full word is available at ys+i */
++    mrb_int limit = n - (bw - 1);
++
++    for (i = 0; i < limit; i += bw, s0++, s1++) {
++      const bitint eq = (*s0 ^ first) | (*s1 ^ last);
++      bitint zeros = ((~eq & MASK2) + MASK1) & (~eq & MASK3);
++      size_t j = 0;
++
++      while (zeros) {
++        if (zeros & MASK4) {
++          const char* substr = (char*)s0 + j + 1;
++          if (memcmp(substr, xs + 1, m - 2) == 0) {
++            return i + (mrb_int)j;
++          }
++        }
+ 
+ #if defined(MRB_ENDIAN_BIG)
+-      zeros <<= 8;
++        zeros <<= 8;
+ #else
+-      zeros >>= 8;
++        zeros >>= 8;
+ #endif
+-      j += 1;
++        j += 1;
++      }
++    }
++
++    /* tail: remaining positions not covered by word reads */
++    for (; i <= n - m; ++i) {
++      if (ys[i] == xs[0] && ys[i + m - 1] == xs[m - 1] &&
++          memcmp(ys + i + 1, xs + 1, m - 2) == 0) return i;
+     }
++    return -1;
+   }
+-  return -1;
+ }
+ 
++
+ static mrb_int
+ mrb_memsearch(const char *x0, mrb_int m, const char *y0, mrb_int n)
+ {

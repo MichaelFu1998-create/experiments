@@ -1,0 +1,241 @@
+{
+  "instance_id": "libxml2.ossfuzz-42531481",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\"analysis_type\":\"allocation\",\"findings\":[{\"file\":\"/src/libxml2/schematron.c\",\"line\":1052,\"message\":\"CodeQL allocation: allocation may be missing null check (unrelated to ASan report). No CodeQL allocation findings reported for tree.c/xmlparser.c/xmlreader.c in the database run.\",\"severity\":\"warning\"}],\"dataflow_summary\":\"N/A\",\"key_insight\":\"Runtime ASan shows a heap-use-after-free: a namespace struct allocated by xmlNewNs is freed (xmlFreeNs/xmlFreeNsList via xmlTextReaderFreeNode) while xmlStaticCopyNode later reads that freed namespace during xmlParseReference. CodeQL allocation scan returned only an unrelated finding in schematron.c and did not flag the specific use-after-free site; static analysis therefore shows a mismatch in ownership/lifetime rather than a simple missing null-check.\",\"fix_suggestions\":[{\"approach\":\"Make xmlStaticCopyNode perform a defensive deep copy of node->ns and node->nsDef (duplicate namespace structs) before accessing them.\",\"reasoning\":\"This guarantees xmlStaticCopyNode will not read freed namespace memory because it operates on owned copies created at the time of copy.\",\"trade_offs\":\"Extra allocations and CPU overhead during node copying; increases memory usage but is localized and low-risk.\"},{\"approach\":\"Introduce explicit ownership or reference counting for xmlNs/xmlNode (increment refcount when a node/namespace is referenced by a copy, decrement and free when count hits zero).\",\"reasoning\":\"Correctly models shared ownership so frees won\u2019t happen while someone still holds a reference; robust long-term solution.\",\"trade_offs\":\"Invasive changes across the codebase, ABI and API impacts, additional complexity and potential performance cost from refcounting.\"},{\"approach\":\"Delay or avoid freeing namespace lists in xmlTextReaderFreeNode during parsing until it is safe (ensure no pending copies/reference paths exist), or add checks to skip freeing ns that may be in use by parser copy paths.\",\"reasoning\":\"Localizes change to the reader path where the premature free occurs and can be a quick mitigation to avoid the use-after-free.\",\"trade_offs\":\"Risk of temporary memory retention (leak-like behavior) if not carefully controlled; requires careful analysis of reader lifecycles to avoid leaking memory.\"}],\"preferred_fix\":\"Perform defensive deep copies of namespace data in xmlStaticCopyNode as the lowest-risk, implementable fix. It directly prevents reads of freed memory with minimal invasive changes; for a long-term, robust solution, consider adding reference-counting/ownership semantics for namespaces and nodes.\"}",
+    "parsed_output": {
+      "analysis_type": "allocation",
+      "findings": [
+        {
+          "file": "/src/libxml2/schematron.c",
+          "line": 1052,
+          "message": "CodeQL allocation: allocation may be missing null check (unrelated to ASan report). No CodeQL allocation findings reported for tree.c/xmlparser.c/xmlreader.c in the database run.",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "N/A",
+      "key_insight": "Runtime ASan shows a heap-use-after-free: a namespace struct allocated by xmlNewNs is freed (xmlFreeNs/xmlFreeNsList via xmlTextReaderFreeNode) while xmlStaticCopyNode later reads that freed namespace during xmlParseReference. CodeQL allocation scan returned only an unrelated finding in schematron.c and did not flag the specific use-after-free site; static analysis therefore shows a mismatch in ownership/lifetime rather than a simple missing null-check.",
+      "fix_suggestions": [
+        {
+          "approach": "Make xmlStaticCopyNode perform a defensive deep copy of node->ns and node->nsDef (duplicate namespace structs) before accessing them.",
+          "reasoning": "This guarantees xmlStaticCopyNode will not read freed namespace memory because it operates on owned copies created at the time of copy.",
+          "trade_offs": "Extra allocations and CPU overhead during node copying; increases memory usage but is localized and low-risk."
+        },
+        {
+          "approach": "Introduce explicit ownership or reference counting for xmlNs/xmlNode (increment refcount when a node/namespace is referenced by a copy, decrement and free when count hits zero).",
+          "reasoning": "Correctly models shared ownership so frees won\u2019t happen while someone still holds a reference; robust long-term solution.",
+          "trade_offs": "Invasive changes across the codebase, ABI and API impacts, additional complexity and potential performance cost from refcounting."
+        },
+        {
+          "approach": "Delay or avoid freeing namespace lists in xmlTextReaderFreeNode during parsing until it is safe (ensure no pending copies/reference paths exist), or add checks to skip freeing ns that may be in use by parser copy paths.",
+          "reasoning": "Localizes change to the reader path where the premature free occurs and can be a quick mitigation to avoid the use-after-free.",
+          "trade_offs": "Risk of temporary memory retention (leak-like behavior) if not carefully controlled; requires careful analysis of reader lifecycles to avoid leaking memory."
+        }
+      ],
+      "preferred_fix": "Perform defensive deep copies of namespace data in xmlStaticCopyNode as the lowest-risk, implementable fix. It directly prevents reads of freed memory with minimal invasive changes; for a long-term, robust solution, consider adding reference-counting/ownership semantics for namespaces and nodes."
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 57641,
+      "output_tokens": 6021
+    },
+    "timing": {
+      "start_time": 1769086529.0524013,
+      "end_time": 1769086634.880198,
+      "duration": 105.82779669761658
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2: during entity/reference parsing (xmlParseReference in parser.c), xmlStaticCopyNode (tree.c) invoked via xmlDocCopyNode reads node/namespace data that has already been freed. This results in reads from freed heap memory, leading to crashes and potential memory-corruption-based exploitation.\n-",
+      "total_steps": 7,
+      "total_duration": 105.82779669761658,
+      "total_input_tokens": 57641,
+      "total_output_tokens": 6021,
+      "total_cost": 0.008056524999999998,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x504000000128\",\n    \"type\": \"use-after-free\",\n    \"location\": \"tree.c:4272 (xmlStaticCopyNode)\"\n  },\n  \"backtrace\": [\n    \"xmlStaticCopyNode at /src/libxml2/tree.c:4272:39\",\n    \"xmlParseReference at /src/libxml2/parser.c:7373:12\",\n    \"xmlParseTryOrFinish at /src/libxml2/parser.c:11628:7\",\n    \"xmlParseChunk at /src/libxml2/parser.c:11912:5\",\n    \"xmlTextReaderPushData at /src/libxml2/xmlreader.c:769:12\",\n    \"xmlTextReaderDoExpand at /src/libxml2/xmlreader.c:1140:8\",\n    \"xmlTextReaderExpand at /src/libxml2/xmlreader.c:1572:9\",\n    \"xmlTextReaderRead at /src/libxml2/xmlreader.c:1422:17\",\n    \"streamFile at /src/libxml2/xmllint.c:1874:12\",\n    \"main at /src/libxml2/xmllint.c:3787:7\",\n    \"(free path) free -> xmlFreeNs at /src/libxml2/tree.c:794:5 -> xmlFreeNsList at /src/libxml2/tree.c:811:9 -> xmlTextReaderFreeNode at /src/libxml2/xmlreader.c:404:2 -> xmlTextReaderRead at /src/libxml2/xmlreader.c:1348:3\"\n  ],\n  \"memory_state\": \"Address 0x504000000128 is 24 bytes inside an allocated 48-byte region [0x504000000110,0x504000000140). The ASan shadow shows the region as freed (fd bytes). The crash is a READ of 8 bytes from that freed region. Allocation occurred in xmlNewNs (tree.c:718) and the region was freed in xmlFreeNs/xmlFreeNsList (tree.c:794/811) before xmlStaticCopyNode attempted to read it.\",\n  \"root_cause_hint\": \"Runtime evidence indicates xmlStaticCopyNode reads a node's namespace data (ns pointer) that has already been freed by xmlFreeNs/xmlFreeNsList during xmlTextReaderFreeNode. The copy operation assumes the namespace pointer is still valid; however ownership/lifetime of namespaces is being ended prematurely, so xmlParseReference (called during reference parsing) triggers a copy of a node whose namespace was already released. This is a classic use-after-free caused by incorrect lifetime/ownership handling between node-copying and namespace freeing.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Deep-copy namespaces when copying nodes (modify xmlStaticCopyNode/xmlDocCopyNode to clone namespace structs instead of reusing pointers).\",\n      \"reasoning\": \"If xmlStaticCopyNode creates fresh namespace structures (e.g., using xmlNewNs) attached to the target node/doc, it will no longer read freed memory even if the original namespace was freed. The sanitizer traces show allocation in xmlNewNs and subsequent free; making a proper deep copy prevents stale-pointer reads.\",\n      \"trade_offs\": \"Increased memory usage and CPU cost due to duplicating namespace structures. Requires auditing all codepaths that use node copies to ensure duplicate namespaces do not break semantics (may need to deduplicate identical namespaces to limit growth).\"\n    },\n    {\n      \"approach\": \"Change ownership/lifetime policy: do not free namespace objects while nodes that may reference them can still be copied \u2014 introduce reference counting or delayed/free-on-doc-free semantics for namespaces.\",\n      \"reasoning\": \"Making namespace lifetime tied to references prevents premature free. The sanitizer shows xmlTextReaderFreeNode frees namespaces during reading; ensuring frees happen only when no outstanding references exist eliminates the use-after-free.\",\n      \"trade_offs\": \"Adds complexity (refcount bookkeeping) and potential performance overhead. Requires careful audit of all places that create/free namespace objects to avoid leaks or cycles.\"\n    },\n    {\n      \"approach\": \"Add defensive checks in xmlStaticCopyNode to verify node->ns and related pointers before dereferencing, and handle NULL or invalid cases gracefully (e.g., skip copying freed namespaces or recreate safe defaults).\",\n      \"reasoning\": \"This is a lower-cost defensive mitigation: if a namespace pointer is NULL or flagged as freed, the copy routine will not dereference it and will avoid the crash. The sanitizer indicates reads come from a freed ns pointer, so guarding dereferences avoids immediate crashes.\",\n      \"trade_offs\": \"This may only mask the underlying ownership bug and could leave data in an inconsistent state. It may hide logic errors and can lead to subtle semantic differences (missing namespace information).\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb"
+      ],
+      "crash_info": {
+        "address": "0x504000000128",
+        "type": "use-after-free",
+        "location": "tree.c:4272 (xmlStaticCopyNode)"
+      },
+      "backtrace": [
+        "xmlStaticCopyNode at /src/libxml2/tree.c:4272:39",
+        "xmlParseReference at /src/libxml2/parser.c:7373:12",
+        "xmlParseTryOrFinish at /src/libxml2/parser.c:11628:7",
+        "xmlParseChunk at /src/libxml2/parser.c:11912:5",
+        "xmlTextReaderPushData at /src/libxml2/xmlreader.c:769:12",
+        "xmlTextReaderDoExpand at /src/libxml2/xmlreader.c:1140:8",
+        "xmlTextReaderExpand at /src/libxml2/xmlreader.c:1572:9",
+        "xmlTextReaderRead at /src/libxml2/xmlreader.c:1422:17",
+        "streamFile at /src/libxml2/xmllint.c:1874:12",
+        "main at /src/libxml2/xmllint.c:3787:7",
+        "(free path) free -> xmlFreeNs at /src/libxml2/tree.c:794:5 -> xmlFreeNsList at /src/libxml2/tree.c:811:9 -> xmlTextReaderFreeNode at /src/libxml2/xmlreader.c:404:2 -> xmlTextReaderRead at /src/libxml2/xmlreader.c:1348:3"
+      ],
+      "memory_state": "Address 0x504000000128 is 24 bytes inside an allocated 48-byte region [0x504000000110,0x504000000140). The ASan shadow shows the region as freed (fd bytes). The crash is a READ of 8 bytes from that freed region. Allocation occurred in xmlNewNs (tree.c:718) and the region was freed in xmlFreeNs/xmlFreeNsList (tree.c:794/811) before xmlStaticCopyNode attempted to read it.",
+      "root_cause_hint": "Runtime evidence indicates xmlStaticCopyNode reads a node's namespace data (ns pointer) that has already been freed by xmlFreeNs/xmlFreeNsList during xmlTextReaderFreeNode. The copy operation assumes the namespace pointer is still valid; however ownership/lifetime of namespaces is being ended prematurely, so xmlParseReference (called during reference parsing) triggers a copy of a node whose namespace was already released. This is a classic use-after-free caused by incorrect lifetime/ownership handling between node-copying and namespace freeing.",
+      "fix_suggestions": [
+        {
+          "approach": "Deep-copy namespaces when copying nodes (modify xmlStaticCopyNode/xmlDocCopyNode to clone namespace structs instead of reusing pointers).",
+          "reasoning": "If xmlStaticCopyNode creates fresh namespace structures (e.g., using xmlNewNs) attached to the target node/doc, it will no longer read freed memory even if the original namespace was freed. The sanitizer traces show allocation in xmlNewNs and subsequent free; making a proper deep copy prevents stale-pointer reads.",
+          "trade_offs": "Increased memory usage and CPU cost due to duplicating namespace structures. Requires auditing all codepaths that use node copies to ensure duplicate namespaces do not break semantics (may need to deduplicate identical namespaces to limit growth)."
+        },
+        {
+          "approach": "Change ownership/lifetime policy: do not free namespace objects while nodes that may reference them can still be copied \u2014 introduce reference counting or delayed/free-on-doc-free semantics for namespaces.",
+          "reasoning": "Making namespace lifetime tied to references prevents premature free. The sanitizer shows xmlTextReaderFreeNode frees namespaces during reading; ensuring frees happen only when no outstanding references exist eliminates the use-after-free.",
+          "trade_offs": "Adds complexity (refcount bookkeeping) and potential performance overhead. Requires careful audit of all places that create/free namespace objects to avoid leaks or cycles."
+        },
+        {
+          "approach": "Add defensive checks in xmlStaticCopyNode to verify node->ns and related pointers before dereferencing, and handle NULL or invalid cases gracefully (e.g., skip copying freed namespaces or recreate safe defaults).",
+          "reasoning": "This is a lower-cost defensive mitigation: if a namespace pointer is NULL or flagged as freed, the copy routine will not dereference it and will avoid the crash. The sanitizer indicates reads come from a freed ns pointer, so guarding dereferences avoids immediate crashes.",
+          "trade_offs": "This may only mask the underlying ownership bug and could leave data in an inconsistent state. It may hide logic errors and can lead to subtle semantic differences (missing namespace information)."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 17685,
+      "output_tokens": 2379
+    },
+    "timing": {
+      "start_time": 1769086634.8835886,
+      "end_time": 1769086658.5585184,
+      "duration": 23.67492985725403
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2: during entity/reference parsing (xmlParseReference in parser.c), xmlStaticCopyNode (tree.c) invoked via xmlDocCopyNode reads node/namespace data that has already been freed. This results in reads from freed heap memory, leading to crashes and potential memory-corruption-based exploitation.\n-",
+      "total_steps": 2,
+      "total_duration": 23.67492985725403,
+      "total_input_tokens": 17685,
+      "total_output_tokens": 2379,
+      "total_cost": 0.002976825,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"/src/libxml2/tree.c\",\n  \"function_analyzed\": \"xmlStaticCopyNode\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"8707838\",\n      \"message\": \"tree: Fix #583 again\",\n      \"changes\": \"In xmlStaticCopyNodeList introduced local newSubset and defer assigning doc->intSubset until after a successful copy; added xmlAddChild of q and only set doc->intSubset at end if newSubset != NULL.\",\n      \"relevance\": \"Directly touches node-copy logic and doc->intSubset assignment timing \u2014 relevant to dangling pointers/use-after-free when partial copies or errors occur.\"\n    },\n    {\n      \"hash\": \"502971c\",\n      \"message\": \"tree: Another fix related to #538\",\n      \"changes\": \"Added linkedSubset flag and adjusted error path to xmlUnlinkNode((xmlNodePtr) doc->intSubset) on error; kept newSubset handling and doc->intSubset assignment at end.\",\n      \"relevance\": \"Changes how an existing doc->intSubset is linked/unlinked during copy and how errors roll back \u2014 important for ensuring no dangling references remain, and may be related to observed frees.\"\n    },\n    {\n      \"hash\": \"aca16fb\",\n      \"message\": \"tree: Report malloc failures\",\n      \"changes\": \"Wider refactor to report malloc failures and change some APIs to return error codes; many tree.c changes (error handling additions), plus new xmlGetNsListSafe and other helpers.\",\n      \"relevance\": \"Adjusts error handling and control flow across tree operations; such changes can alter lifetime and freeing behavior of nodes/namespaces and expose use-after-free timing.\"\n    }\n  ],\n  \"vulnerability_origin\": \"Recent edits to xmlStaticCopyNodeList/intSubset handling (late 2023 commits) changed when doc->intSubset is linked and how error paths unlink nodes. These lifecycle changes likely introduced a window where xmlStaticCopyNode reads node/namespace data that has been freed by xmlFreeNs/xmlTextReaderFreeNode during error/unlink handling.\",\n  \"fix_hints\": \"Ensure doc->intSubset and namespace lists are only linked after a complete, successful deep copy; on error, fully undo partial links and avoid reading doc->intSubset or node->ns pointers that may have been freed. Consider defensive copying of namespace lists or reference counting to keep them alive while in use.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Delay linking doc->intSubset and parent insertion until after a verified successful deep copy of DTD/namespaces; use temporary locals (as newSubset) and assign doc->intSubset at the end.\",\n      \"reasoning\": \"Matches intent of recent commits (defer assignment). Prevents other code paths from seeing/operating on partially-copied structures and reduces dangling-pointer windows.\",\n      \"trade_offs\": \"Requires careful undo logic on error and may increase short-lived memory usage during copy.\"\n    },\n    {\n      \"approach\": \"Make xmlStaticCopyNode perform a safe deep copy of namespace lists (xmlGetNsListSafe) and ensure copied nodes own their namespace objects, or increment an ownership/refcount to prevent premature free.\",\n      \"reasoning\": \"If xmlStaticCopyNode never reads from original namespace pointers after unlink/free, use-after-free is avoided even if other code frees originals.\",\n      \"trade_offs\": \"Introduces extra allocations or refcounting complexity and potential API/ABI implications; must ensure all paths follow the ownership model.\"\n    },\n    {\n      \"approach\": \"Harden error paths in xmlStaticCopyNodeList and callers (xmlTextReader* parsing code) to not free namespace/node memory while copies that might reference them are ongoing \u2014 or ensure callers unlink safely without freeing until copies finish.\",\n      \"reasoning\": \"Sanitizer shows xmlFreeNs and xmlTextReaderFreeNode running before xmlStaticCopyNode read \u2014 synchronizing lifetimes at higher level prevents races between free and copy.\",\n      \"trade_offs\": \"May delay frees and increase peak memory; requires careful auditing of caller interactions and parser state transitions.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "file_analyzed": "/src/libxml2/tree.c",
+      "function_analyzed": "xmlStaticCopyNode",
+      "relevant_commits": [
+        {
+          "hash": "8707838",
+          "message": "tree: Fix #583 again",
+          "changes": "In xmlStaticCopyNodeList introduced local newSubset and defer assigning doc->intSubset until after a successful copy; added xmlAddChild of q and only set doc->intSubset at end if newSubset != NULL.",
+          "relevance": "Directly touches node-copy logic and doc->intSubset assignment timing \u2014 relevant to dangling pointers/use-after-free when partial copies or errors occur."
+        },
+        {
+          "hash": "502971c",
+          "message": "tree: Another fix related to #538",
+          "changes": "Added linkedSubset flag and adjusted error path to xmlUnlinkNode((xmlNodePtr) doc->intSubset) on error; kept newSubset handling and doc->intSubset assignment at end.",
+          "relevance": "Changes how an existing doc->intSubset is linked/unlinked during copy and how errors roll back \u2014 important for ensuring no dangling references remain, and may be related to observed frees."
+        },
+        {
+          "hash": "aca16fb",
+          "message": "tree: Report malloc failures",
+          "changes": "Wider refactor to report malloc failures and change some APIs to return error codes; many tree.c changes (error handling additions), plus new xmlGetNsListSafe and other helpers.",
+          "relevance": "Adjusts error handling and control flow across tree operations; such changes can alter lifetime and freeing behavior of nodes/namespaces and expose use-after-free timing."
+        }
+      ],
+      "vulnerability_origin": "Recent edits to xmlStaticCopyNodeList/intSubset handling (late 2023 commits) changed when doc->intSubset is linked and how error paths unlink nodes. These lifecycle changes likely introduced a window where xmlStaticCopyNode reads node/namespace data that has been freed by xmlFreeNs/xmlTextReaderFreeNode during error/unlink handling.",
+      "fix_hints": "Ensure doc->intSubset and namespace lists are only linked after a complete, successful deep copy; on error, fully undo partial links and avoid reading doc->intSubset or node->ns pointers that may have been freed. Consider defensive copying of namespace lists or reference counting to keep them alive while in use.",
+      "fix_suggestions": [
+        {
+          "approach": "Delay linking doc->intSubset and parent insertion until after a verified successful deep copy of DTD/namespaces; use temporary locals (as newSubset) and assign doc->intSubset at the end.",
+          "reasoning": "Matches intent of recent commits (defer assignment). Prevents other code paths from seeing/operating on partially-copied structures and reduces dangling-pointer windows.",
+          "trade_offs": "Requires careful undo logic on error and may increase short-lived memory usage during copy."
+        },
+        {
+          "approach": "Make xmlStaticCopyNode perform a safe deep copy of namespace lists (xmlGetNsListSafe) and ensure copied nodes own their namespace objects, or increment an ownership/refcount to prevent premature free.",
+          "reasoning": "If xmlStaticCopyNode never reads from original namespace pointers after unlink/free, use-after-free is avoided even if other code frees originals.",
+          "trade_offs": "Introduces extra allocations or refcounting complexity and potential API/ABI implications; must ensure all paths follow the ownership model."
+        },
+        {
+          "approach": "Harden error paths in xmlStaticCopyNodeList and callers (xmlTextReader* parsing code) to not free namespace/node memory while copies that might reference them are ongoing \u2014 or ensure callers unlink safely without freeing until copies finish.",
+          "reasoning": "Sanitizer shows xmlFreeNs and xmlTextReaderFreeNode running before xmlStaticCopyNode read \u2014 synchronizing lifetimes at higher level prevents races between free and copy.",
+          "trade_offs": "May delay frees and increase peak memory; requires careful auditing of caller interactions and parser state transitions."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 17321,
+      "output_tokens": 2272
+    },
+    "timing": {
+      "start_time": 1769086658.5615995,
+      "end_time": 1769086919.8160112,
+      "duration": 261.2544116973877
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2: during entity/reference parsing (xmlParseReference in parser.c), xmlStaticCopyNode (tree.c) invoked via xmlDocCopyNode reads node/namespace data that has already been freed. This results in reads from freed heap memory, leading to crashes and potential memory-corruption-based exploitation.\n-",
+      "total_steps": 2,
+      "total_duration": 261.2544116973877,
+      "total_input_tokens": 17321,
+      "total_output_tokens": 2272,
+      "total_cost": 0.0028243249999999995,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"xmlStaticCopyNode (called during reference parsing) was dereferencing node->ns / namespace structures that had been freed by xmlTextReaderFreeNode/xmlFreeNsList while the reader was freeing nodes during parsing, causing a heap-use-after-free.\",\n  \"fix_approach\": \"Defensive lifetime adjustment in xmlreader: when the xmlTextReader would previously free a node->nsDef list while parsing, move that namespace list into the owning document's doc->oldNs storage (by prepending into doc->oldNs) when a reader context/document exists so the namespaces remain valid for any in-progress node copies and are reclaimed later when the document is freed. If no document is available, fall back to the original xmlFreeNsList behavior.\",\n  \"files_modified\": [\"xmlreader.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"medium\"\n}",
+    "parsed_output": {
+      "root_cause": "xmlStaticCopyNode (called during reference parsing) was dereferencing node->ns / namespace structures that had been freed by xmlTextReaderFreeNode/xmlFreeNsList while the reader was freeing nodes during parsing, causing a heap-use-after-free.",
+      "fix_approach": "Defensive lifetime adjustment in xmlreader: when the xmlTextReader would previously free a node->nsDef list while parsing, move that namespace list into the owning document's doc->oldNs storage (by prepending into doc->oldNs) when a reader context/document exists so the namespaces remain valid for any in-progress node copies and are reclaimed later when the document is freed. If no document is available, fall back to the original xmlFreeNsList behavior.",
+      "files_modified": [
+        "xmlreader.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "medium"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 1585603,
+      "output_tokens": 26759
+    },
+    "timing": {
+      "start_time": 1769086919.8195608,
+      "end_time": 1769087254.9686863,
+      "duration": 335.1491255760193
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in libxml2: during entity/reference parsing (xmlParseReference in parser.c), xmlStaticCopyNode (tree.c) invoked via xmlDocCopyNode reads node/namespace data that has already been freed. This results in reads from freed heap memory, leading to crashes and potential memory-corruption-based exploitation.\n-",
+      "total_steps": 36,
+      "total_duration": 335.1491255760193,
+      "total_input_tokens": 1585603,
+      "total_output_tokens": 26759,
+      "total_cost": 0.070821775,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 1678250,
+    "output_tokens": 37431
+  },
+  "timing": {
+    "total_duration": 725.9480094909668
+  }
+}

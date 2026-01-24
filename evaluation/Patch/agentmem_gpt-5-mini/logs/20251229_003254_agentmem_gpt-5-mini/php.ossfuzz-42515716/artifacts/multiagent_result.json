@@ -1,0 +1,249 @@
+{
+  "instance_id": "php.ossfuzz-42515716",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\n  \"analysis_type\": \"allocation\",\n  \"findings\": [\n    {\n      \"file\": \"/src/php-src/ext/date/lib/timelib.c\",\n      \"line\": 159,\n      \"message\": \"ASan runtime: heap-use-after-free in timelib_error_container_dtor (reads freed timelib_error_container). CodeQL allocation analysis returned no direct allocation/ownership matches in this file.\",\n      \"severity\": \"error\"\n    },\n    {\n      \"file\": \"/src/php-src/ext/date/php_date.c\",\n      \"line\": 2281,\n      \"message\": \"ASan runtime: update_errors_warnings frees timelib_error_container here. CodeQL allocation analysis produced no relevant findings that explain ownership in this file.\",\n      \"severity\": \"error\"\n    }\n  ],\n  \"dataflow_summary\": \"N/A\",\n  \"key_insight\": \"Root cause is an ownership/lifetime mismatch: timelib's error container is freed during DateTime initialization (update_errors_warnings) but later accessed by timelib_error_container_dtor at module/request shutdown, causing a use-after-free.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Make timelib own a private copy of the error container (deep copy) when needed.\",\n      \"reasoning\": \"Isolates lifetimes: timelib will free only its own memory, eliminating shared-owner UAFs. Static analysis shows no CodeQL allocation traces tying ownership between php_date and timelib, so copying clarifies ownership.\",\n      \"trade_offs\": \"Memory and CPU overhead for copying; changes to timelib API to accept/produce copies. Safer and low-risk for correctness.\"\n    },\n    {\n      \"approach\": \"Unify ownership with explicit reference counting or transfer semantics (set pointer to NULL in owner after free).\",\n      \"reasoning\": \"Either add refcounting for shared containers or ensure the freeing code nulls out references and timelib checks for NULL before use; minimal invasive change in php_date to avoid leaving dangling pointers.\",\n      \"trade_offs\": \"Refcounting adds complexity and potential performance cost; manually nulling pointers requires audit of all code paths to avoid regressions.\"\n    },\n    {\n      \"approach\": \"Delay/free at a single well-defined point (e.g., free container at module/request shutdown only).\",\n      \"reasoning\": \"Quick mitigation: avoid freeing earlier during DateTime init so timelib dtor sees valid data at shutdown. Matches the observed crash timeline where free happens during init.\",\n      \"trade_offs\": \"Increases memory lifetime and risks leaking if shutdown paths change; is a workaround rather than robust ownership fix.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "analysis_type": "allocation",
+      "findings": [
+        {
+          "file": "/src/php-src/ext/date/lib/timelib.c",
+          "line": 159,
+          "message": "ASan runtime: heap-use-after-free in timelib_error_container_dtor (reads freed timelib_error_container). CodeQL allocation analysis returned no direct allocation/ownership matches in this file.",
+          "severity": "error"
+        },
+        {
+          "file": "/src/php-src/ext/date/php_date.c",
+          "line": 2281,
+          "message": "ASan runtime: update_errors_warnings frees timelib_error_container here. CodeQL allocation analysis produced no relevant findings that explain ownership in this file.",
+          "severity": "error"
+        }
+      ],
+      "dataflow_summary": "N/A",
+      "key_insight": "Root cause is an ownership/lifetime mismatch: timelib's error container is freed during DateTime initialization (update_errors_warnings) but later accessed by timelib_error_container_dtor at module/request shutdown, causing a use-after-free.",
+      "fix_suggestions": [
+        {
+          "approach": "Make timelib own a private copy of the error container (deep copy) when needed.",
+          "reasoning": "Isolates lifetimes: timelib will free only its own memory, eliminating shared-owner UAFs. Static analysis shows no CodeQL allocation traces tying ownership between php_date and timelib, so copying clarifies ownership.",
+          "trade_offs": "Memory and CPU overhead for copying; changes to timelib API to accept/produce copies. Safer and low-risk for correctness."
+        },
+        {
+          "approach": "Unify ownership with explicit reference counting or transfer semantics (set pointer to NULL in owner after free).",
+          "reasoning": "Either add refcounting for shared containers or ensure the freeing code nulls out references and timelib checks for NULL before use; minimal invasive change in php_date to avoid leaving dangling pointers.",
+          "trade_offs": "Refcounting adds complexity and potential performance cost; manually nulling pointers requires audit of all code paths to avoid regressions."
+        },
+        {
+          "approach": "Delay/free at a single well-defined point (e.g., free container at module/request shutdown only).",
+          "reasoning": "Quick mitigation: avoid freeing earlier during DateTime init so timelib dtor sees valid data at shutdown. Matches the observed crash timeline where free happens during init.",
+          "trade_offs": "Increases memory lifetime and risks leaking if shutdown paths change; is a workaround rather than robust ownership fix."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 27021,
+      "output_tokens": 2337
+    },
+    "timing": {
+      "start_time": 1769164400.8077414,
+      "end_time": 1769164463.9680195,
+      "duration": 63.16027808189392
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in the date extension: timelib_error_container_dtor (ext/date/lib/timelib.c) reads a timelib_error_container that has already been freed (freed earlier by update_errors_warnings during DateTime initialization in ext/date/php_date.c). The freed container is later accessed during module/request deactivati",
+      "total_steps": 3,
+      "total_duration": 63.16027808189392,
+      "total_input_tokens": 27021,
+      "total_output_tokens": 2337,
+      "total_cost": 0.003871425,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\"],\n  \"crash_info\": {\n    \"address\": \"0x503000024dd4 (ASan) \u2014 original report also showed 0x503000024c24\",\n    \"type\": \"heap-use-after-free\",\n    \"location\": \"ext/date/lib/timelib.c:159 (timelib_error_container_dtor)\"\n  },\n  \"backtrace\": [\n    \"timelib_error_container_dtor at ext/date/lib/timelib.c:159\",\n    \"zm_post_zend_deactivate_date at ext/date/php_date.c:426\",\n    \"zend_post_deactivate_modules at Zend/zend_API.c:3154\",\n    \"php_request_shutdown at main/main.c:1865\",\n    \"do_cli at sapi/cli/php_cli.c:1135\",\n    \"main at sapi/cli/php_cli.c:1333\",\n    \"free (called from update_errors_warnings) at ext/date/php_date.c:2281\",\n    \"timelib_strtotime (allocation site) at ext/date/lib/parse_date.re:1930\"\n  ],\n  \"memory_state\": \"ASan shows the accessed address is inside a 24-byte heap allocation (allocated by timelib_strtotime). The access is 20 bytes into that 24-byte region and the region was freed earlier (free called in update_errors_warnings at ext/date/php_date.c:2281). Later, during module/request deactivation, timelib_error_container_dtor reads the freed memory, causing use-after-free.\",\n  \"root_cause_hint\": \"Runtime evidence indicates a lifecycle/ownership mismatch for the timelib_error_container: it is freed during DateTime initialization (update_errors_warnings) but the destructor (timelib_error_container_dtor) is invoked later at module/request shutdown and assumes the container is still valid. In short, code frees the container too early (or fails to clear the pointer), leading to reads of freed memory.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Enforce single ownership and clear pointer after free\",\n      \"reasoning\": \"Make update_errors_warnings either not free the global/host pointer or, if it must free, set the owning pointer to NULL after freeing so the later destructor (timelib_error_container_dtor) can skip operating on it. This directly prevents the destructor from accessing freed memory.\",\n      \"trade_offs\": \"Simple to implement and low overhead. If update_errors_warnings stops freeing early, memory held by the container will persist until normal shutdown, increasing short-lived memory usage slightly. Setting pointer to NULL requires careful checks everywhere the pointer is accessed.\"\n    },\n    {\n      \"approach\": \"Transfer ownership explicitly or use reference counting\",\n      \"reasoning\": \"Make ownership semantics explicit: either transfer the container to the caller that will manage its lifetime, or add a simple reference count so both initialization code and shutdown code can safely share/use the container. This avoids unintended double frees and use-after-free.\",\n      \"trade_offs\": \"Safer and more robust for complex flows but more invasive: requires changes to APIs and callers, and careful refcount handling to avoid leaks or races (if multithreaded).\"\n    },\n    {\n      \"approach\": \"Make destructor robust: check for NULL and avoid reading freed internals; free/clear only resources owned at that time\",\n      \"reasoning\": \"Harden timelib_error_container_dtor so it tolerates partially-initialized or cleared containers (e.g., check pointer fields before dereferencing). This reduces crash risk even if other code frees state early.\",\n      \"trade_offs\": \"Defensive, but may hide ownership bugs. It\u2019s best used together with correct ownership fixes rather than as sole fix. Also, checking for validity doesn't recover lost state and may complicate destructor logic.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb"
+      ],
+      "crash_info": {
+        "address": "0x503000024dd4 (ASan) \u2014 original report also showed 0x503000024c24",
+        "type": "heap-use-after-free",
+        "location": "ext/date/lib/timelib.c:159 (timelib_error_container_dtor)"
+      },
+      "backtrace": [
+        "timelib_error_container_dtor at ext/date/lib/timelib.c:159",
+        "zm_post_zend_deactivate_date at ext/date/php_date.c:426",
+        "zend_post_deactivate_modules at Zend/zend_API.c:3154",
+        "php_request_shutdown at main/main.c:1865",
+        "do_cli at sapi/cli/php_cli.c:1135",
+        "main at sapi/cli/php_cli.c:1333",
+        "free (called from update_errors_warnings) at ext/date/php_date.c:2281",
+        "timelib_strtotime (allocation site) at ext/date/lib/parse_date.re:1930"
+      ],
+      "memory_state": "ASan shows the accessed address is inside a 24-byte heap allocation (allocated by timelib_strtotime). The access is 20 bytes into that 24-byte region and the region was freed earlier (free called in update_errors_warnings at ext/date/php_date.c:2281). Later, during module/request deactivation, timelib_error_container_dtor reads the freed memory, causing use-after-free.",
+      "root_cause_hint": "Runtime evidence indicates a lifecycle/ownership mismatch for the timelib_error_container: it is freed during DateTime initialization (update_errors_warnings) but the destructor (timelib_error_container_dtor) is invoked later at module/request shutdown and assumes the container is still valid. In short, code frees the container too early (or fails to clear the pointer), leading to reads of freed memory.",
+      "fix_suggestions": [
+        {
+          "approach": "Enforce single ownership and clear pointer after free",
+          "reasoning": "Make update_errors_warnings either not free the global/host pointer or, if it must free, set the owning pointer to NULL after freeing so the later destructor (timelib_error_container_dtor) can skip operating on it. This directly prevents the destructor from accessing freed memory.",
+          "trade_offs": "Simple to implement and low overhead. If update_errors_warnings stops freeing early, memory held by the container will persist until normal shutdown, increasing short-lived memory usage slightly. Setting pointer to NULL requires careful checks everywhere the pointer is accessed."
+        },
+        {
+          "approach": "Transfer ownership explicitly or use reference counting",
+          "reasoning": "Make ownership semantics explicit: either transfer the container to the caller that will manage its lifetime, or add a simple reference count so both initialization code and shutdown code can safely share/use the container. This avoids unintended double frees and use-after-free.",
+          "trade_offs": "Safer and more robust for complex flows but more invasive: requires changes to APIs and callers, and careful refcount handling to avoid leaks or races (if multithreaded)."
+        },
+        {
+          "approach": "Make destructor robust: check for NULL and avoid reading freed internals; free/clear only resources owned at that time",
+          "reasoning": "Harden timelib_error_container_dtor so it tolerates partially-initialized or cleared containers (e.g., check pointer fields before dereferencing). This reduces crash risk even if other code frees state early.",
+          "trade_offs": "Defensive, but may hide ownership bugs. It\u2019s best used together with correct ownership fixes rather than as sole fix. Also, checking for validity doesn't recover lost state and may complicate destructor logic."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 30555,
+      "output_tokens": 2663
+    },
+    "timing": {
+      "start_time": 1769164463.973471,
+      "end_time": 1769164697.2341056,
+      "duration": 233.26063466072083
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in the date extension: timelib_error_container_dtor (ext/date/lib/timelib.c) reads a timelib_error_container that has already been freed (freed earlier by update_errors_warnings during DateTime initialization in ext/date/php_date.c). The freed container is later accessed during module/request deactivati",
+      "total_steps": 3,
+      "total_duration": 233.26063466072083,
+      "total_input_tokens": 30555,
+      "total_output_tokens": 2663,
+      "total_cost": 0.003760775,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\"file_analyzed\":\"ext/date/lib/timelib.c\",\"function_analyzed\":\"timelib_error_container_dtor\",\"relevant_commits\":[{\"hash\":\"c49cd84\",\"message\":\"make timelib independent from zend_long\",\"changes\":\"Changed types (zend_long->timelib_long/TIMELIB_LONG_*), typedef adjustments in timelib.c\",\"relevance\":\"Introduced type/ABI changes in timelib; not directly freeing-related but part of timelib evolution that impacts interactions with callers.\"},{\"hash\":\"96d1d13\",\"message\":\"Update timelib to 2015.02\",\"changes\":\"Replaced malloc/calloc/strdup/free with timelib_malloc/timelib_calloc/timelib_strdup/timelib_free across timelib.c; timelib_error_container_dtor switched to timelib_free for message arrays and container itself\",\"relevance\":\"Changed allocation/freeing APIs inside timelib. If external code (php_date.c) still uses plain free() on containers allocated/expected to be freed with timelib_free, ownership/mismatch can cause double-free or premature free/use-after-free.\"},{\"hash\":\"fab5cba\",\"message\":\"Bumb timelib version to 2015.01\",\"changes\":\"Large upstream timelib update (license header, string handling fixes, tz_abbr handling and small fixes) including adjustments around error container and tz handling\",\"relevance\":\"Part of timelib updates that adjusted internal memory handling and string lifetimes; context for later timelib_free changes.\"},{\"hash\":\"f799bc4\",\"message\":\"Don't return existing error_container/NULL, but use by-ref instead\",\"changes\":\"Changed how php_date returns/handles timelib error_container (changed ownership/return semantics in ext/date/php_date.c)\",\"relevance\":\"Directly relevant: this change altered how php_date manages/returns the error_container. A mismatch between the new by-ref semantics and timelib's destructor/expected ownership likely caused php_date to free the container earlier (update_errors_warnings), leaving timelib_error_container_dtor to access freed memory during module/request shutdown.\"}],\"vulnerability_origin\":\"A mismatch in ownership and freeing semantics between timelib and ext/date/php_date. Timelib was updated to use its own timelib_free API (2015) and expects to manage its containers; later changes in php_date (2022) changed how error_container is returned/handled (by-ref), resulting in php_date freeing the container earlier (update_errors_warnings) while timelib_error_container_dtor still accesses it at module/request teardown, causing use-after-free.\",\"fix_hints\":\"Make ownership and lifecycle of timelib error containers explicit and single-owner: either (A) php_date takes full ownership (duplicate container/data) and timelib no longer frees shared containers during shutdown, or (B) php_date does not free containers that timelib will free later; set pointers to NULL after free; or (C) use reference counting or transfer semantics so destructor is only called once.\",\"fix_suggestions\":[{\"approach\":\"Ensure single ownership in php_date: when php_date consumes a timelib error_container, duplicate the messages into PHP-managed structures and immediately free the timelib container (or vice versa).\",\"reasoning\":\"Duplicating data on the PHP side makes ownership explicit and avoids multiple owners freeing the same memory. Historical timelib changes replaced plain free with timelib_free, so matching allocation/freeing APIs is important; duplication removes the lifetime coupling.\",\"trade_offs\":\"More copying and memory use; slightly higher CPU/memory but simple and safe.\"},{\"approach\":\"Adjust php_date update_errors_warnings to NOT free the timelib error_container when it will be freed later by timelib_error_container_dtor; instead clear/NULL the reference or transfer ownership explicitly.\" ,\"reasoning\":\"Minimal invasive change: keep timelib as the single owner and avoid premature free. Matches the timelib_free transition from history and requires only php_date fixes.\",\"trade_offs\":\"Requires careful documentation and tests to ensure no other code path expects php_date to free the container; subtle if multiple call-sites assume different semantics.\"},{\"approach\":\"Introduce a small ownership/refcount field or API: timelib_create_error_container / timelib_take_error_container to transfer ownership; or add a flag to timelib_error_container that marks whether destructor should free contents.\" ,\"reasoning\":\"Explicit ownership API avoids ambiguity and scales better than ad-hoc fixes. History shows repeated changes to allocation APIs; an explicit API stabilizes interaction surface.\",\"trade_offs\":\"More invasive change across bindings and call sites; requires updating callers and tests, but is robust long-term.\"}]}",
+    "parsed_output": {
+      "file_analyzed": "ext/date/lib/timelib.c",
+      "function_analyzed": "timelib_error_container_dtor",
+      "relevant_commits": [
+        {
+          "hash": "c49cd84",
+          "message": "make timelib independent from zend_long",
+          "changes": "Changed types (zend_long->timelib_long/TIMELIB_LONG_*), typedef adjustments in timelib.c",
+          "relevance": "Introduced type/ABI changes in timelib; not directly freeing-related but part of timelib evolution that impacts interactions with callers."
+        },
+        {
+          "hash": "96d1d13",
+          "message": "Update timelib to 2015.02",
+          "changes": "Replaced malloc/calloc/strdup/free with timelib_malloc/timelib_calloc/timelib_strdup/timelib_free across timelib.c; timelib_error_container_dtor switched to timelib_free for message arrays and container itself",
+          "relevance": "Changed allocation/freeing APIs inside timelib. If external code (php_date.c) still uses plain free() on containers allocated/expected to be freed with timelib_free, ownership/mismatch can cause double-free or premature free/use-after-free."
+        },
+        {
+          "hash": "fab5cba",
+          "message": "Bumb timelib version to 2015.01",
+          "changes": "Large upstream timelib update (license header, string handling fixes, tz_abbr handling and small fixes) including adjustments around error container and tz handling",
+          "relevance": "Part of timelib updates that adjusted internal memory handling and string lifetimes; context for later timelib_free changes."
+        },
+        {
+          "hash": "f799bc4",
+          "message": "Don't return existing error_container/NULL, but use by-ref instead",
+          "changes": "Changed how php_date returns/handles timelib error_container (changed ownership/return semantics in ext/date/php_date.c)",
+          "relevance": "Directly relevant: this change altered how php_date manages/returns the error_container. A mismatch between the new by-ref semantics and timelib's destructor/expected ownership likely caused php_date to free the container earlier (update_errors_warnings), leaving timelib_error_container_dtor to access freed memory during module/request shutdown."
+        }
+      ],
+      "vulnerability_origin": "A mismatch in ownership and freeing semantics between timelib and ext/date/php_date. Timelib was updated to use its own timelib_free API (2015) and expects to manage its containers; later changes in php_date (2022) changed how error_container is returned/handled (by-ref), resulting in php_date freeing the container earlier (update_errors_warnings) while timelib_error_container_dtor still accesses it at module/request teardown, causing use-after-free.",
+      "fix_hints": "Make ownership and lifecycle of timelib error containers explicit and single-owner: either (A) php_date takes full ownership (duplicate container/data) and timelib no longer frees shared containers during shutdown, or (B) php_date does not free containers that timelib will free later; set pointers to NULL after free; or (C) use reference counting or transfer semantics so destructor is only called once.",
+      "fix_suggestions": [
+        {
+          "approach": "Ensure single ownership in php_date: when php_date consumes a timelib error_container, duplicate the messages into PHP-managed structures and immediately free the timelib container (or vice versa).",
+          "reasoning": "Duplicating data on the PHP side makes ownership explicit and avoids multiple owners freeing the same memory. Historical timelib changes replaced plain free with timelib_free, so matching allocation/freeing APIs is important; duplication removes the lifetime coupling.",
+          "trade_offs": "More copying and memory use; slightly higher CPU/memory but simple and safe."
+        },
+        {
+          "approach": "Adjust php_date update_errors_warnings to NOT free the timelib error_container when it will be freed later by timelib_error_container_dtor; instead clear/NULL the reference or transfer ownership explicitly.",
+          "reasoning": "Minimal invasive change: keep timelib as the single owner and avoid premature free. Matches the timelib_free transition from history and requires only php_date fixes.",
+          "trade_offs": "Requires careful documentation and tests to ensure no other code path expects php_date to free the container; subtle if multiple call-sites assume different semantics."
+        },
+        {
+          "approach": "Introduce a small ownership/refcount field or API: timelib_create_error_container / timelib_take_error_container to transfer ownership; or add a flag to timelib_error_container that marks whether destructor should free contents.",
+          "reasoning": "Explicit ownership API avoids ambiguity and scales better than ad-hoc fixes. History shows repeated changes to allocation APIs; an explicit API stabilizes interaction surface.",
+          "trade_offs": "More invasive change across bindings and call sites; requires updating callers and tests, but is robust long-term."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 66864,
+      "output_tokens": 7499
+    },
+    "timing": {
+      "start_time": 1769164697.237844,
+      "end_time": 1769165636.1915233,
+      "duration": 938.9536793231964
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in the date extension: timelib_error_container_dtor (ext/date/lib/timelib.c) reads a timelib_error_container that has already been freed (freed earlier by update_errors_warnings during DateTime initialization in ext/date/php_date.c). The freed container is later accessed during module/request deactivati",
+      "total_steps": 6,
+      "total_duration": 938.9536793231964,
+      "total_input_tokens": 66864,
+      "total_output_tokens": 7499,
+      "total_cost": 0.009391400000000001,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"Ownership/lifetime mismatch: a timelib_error_container allocated during parsing was freed by php_date (update_errors_warnings) while the timelib destructor (timelib_error_container_dtor) still assumed it would be freed at module/request shutdown, leading to a heap-use-after-free.\",\n  \"fix_approach\": \"Made update_errors_warnings transfer ownership of the error container to the module-global DATEG(last_errors) when the container contains warnings or errors, and only free the container immediately when there are no warnings/errors to keep. This prevents freeing a container that will later be accessed by timelib_error_container_dtor during shutdown. The function also clears the caller's pointer to avoid dangling references.\",\n  \"files_modified\": [\"ext/date/php_date.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "Ownership/lifetime mismatch: a timelib_error_container allocated during parsing was freed by php_date (update_errors_warnings) while the timelib destructor (timelib_error_container_dtor) still assumed it would be freed at module/request shutdown, leading to a heap-use-after-free.",
+      "fix_approach": "Made update_errors_warnings transfer ownership of the error container to the module-global DATEG(last_errors) when the container contains warnings or errors, and only free the container immediately when there are no warnings/errors to keep. This prevents freeing a container that will later be accessed by timelib_error_container_dtor during shutdown. The function also clears the caller's pointer to avoid dangling references.",
+      "files_modified": [
+        "ext/date/php_date.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 331741,
+      "output_tokens": 5777
+    },
+    "timing": {
+      "start_time": 1769165636.1965241,
+      "end_time": 1769165894.4396856,
+      "duration": 258.24316143989563
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/php-src\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/php-src`. Consider the following issue description:\n\n<issue_description>\nHeap-use-after-free in the date extension: timelib_error_container_dtor (ext/date/lib/timelib.c) reads a timelib_error_container that has already been freed (freed earlier by update_errors_warnings during DateTime initialization in ext/date/php_date.c). The freed container is later accessed during module/request deactivati",
+      "total_steps": 14,
+      "total_duration": 258.24316143989563,
+      "total_input_tokens": 331741,
+      "total_output_tokens": 5777,
+      "total_cost": 0.012857425,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 456181,
+    "output_tokens": 18276
+  },
+  "timing": {
+    "total_duration": 1493.6411168575287
+  }
+}

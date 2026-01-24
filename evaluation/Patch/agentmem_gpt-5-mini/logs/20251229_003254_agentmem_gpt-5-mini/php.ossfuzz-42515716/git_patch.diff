@@ -1,0 +1,20 @@
+diff --git a/ext/date/php_date.c b/ext/date/php_date.c
+index abda2a305c7..ef86bbcee5f 100644
+--- a/ext/date/php_date.c
++++ b/ext/date/php_date.c
+@@ -2275,10 +2275,15 @@ static void update_errors_warnings(timelib_error_container **last_errors) /* {{{
+ 	}
+ 
+ 	if ((*last_errors)->warning_count || (*last_errors)->error_count) {
++		/* transfer ownership to the module-global last_errors so it can be
++		 * inspected later during request shutdown. Do not free the container
++		 * here because ownership has been transferred. */
+ 		DATEG(last_errors) = *last_errors;
++	} else {
++		/* No errors/warnings to keep: free the container now. */
++		timelib_error_container_dtor(*last_errors);
+ 	}
+ 
+-	timelib_error_container_dtor(*last_errors);
+ 	*last_errors = NULL;
+ } /* }}} */

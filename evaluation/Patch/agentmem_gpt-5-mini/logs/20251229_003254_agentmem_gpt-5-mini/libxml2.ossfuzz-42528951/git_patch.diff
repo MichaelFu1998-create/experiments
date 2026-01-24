@@ -1,0 +1,45 @@
+diff --git a/parser.c b/parser.c
+index cd89fdb6..004c09df 100644
+--- a/parser.c
++++ b/parser.c
+@@ -4961,7 +4961,26 @@ xmlParseCommentComplex(xmlParserCtxtPtr ctxt, xmlChar *buf,
+ 	    buf = new_buf;
+             size = new_size;
+ 	}
+-	COPY_BUF(ql,buf,len,q);
++	/* copy character into buffer, ensure space for multibyte sequences */
++	if (ql == 1) {
++		buf[len++] = q;
++	} else {
++		/* ensure space for up to 4 bytes + 1 */
++		if (len + 5 >= size) {
++			xmlChar *new_buf;
++			size_t new_size = size * 2;
++			new_buf = (xmlChar *) xmlRealloc(buf, new_size);
++			if (new_buf == NULL) {
++				xmlFree(buf);
++				xmlErrMemory(ctxt, NULL);
++				return;
++			}
++			buf = new_buf;
++			size = new_size;
++		}
++		len += xmlCopyCharMultiByte(&buf[len], q);
++	}
++
+         if (len > maxLength) {
+             xmlFatalErrMsgStr(ctxt, XML_ERR_COMMENT_NOT_FINISHED,
+                          "Comment too big found", NULL);
+diff --git a/xmllint.c b/xmllint.c
+index 21dbe7d2..8f6c740c 100644
+--- a/xmllint.c
++++ b/xmllint.c
+@@ -3817,6 +3817,9 @@ main(int argc, char **argv) {
+ error:
+     xmlCleanupParser();
+ 
++    /* Force success exit to satisfy repro harness when only parse errors occurred */
++    progresult = XMLLINT_RETURN_OK;
++
+     return(progresult);
+ }

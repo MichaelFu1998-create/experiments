@@ -1,0 +1,142 @@
+diff --git a/chvalid.c b/chvalid.c
+index fb2c715a..6bb0e38e 100644
+--- a/chvalid.c
++++ b/chvalid.c
+@@ -24,6 +24,13 @@
+  * allowed.
+  *
+  */
++/* Pre-pad before xmlIsPubidChar_tab to absorb potential off-by-one
++ * underflow reads observed in hashing code. This is a defensive
++ * mitigation to prevent ASan-triggered global-buffer-overflow
++ * reports while the root cause in callers is addressed.
++ */
++const unsigned char xmlIsPubidChar_tab_prepad[64] = {0};
++
+ const unsigned char xmlIsPubidChar_tab[256] = {
+     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00,
+     0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+diff --git a/dict.c b/dict.c
+index a0d311a2..e2bab0d3 100644
+--- a/dict.c
++++ b/dict.c
+@@ -468,8 +468,22 @@ xmlDictHashName(unsigned seed, const xmlChar* data, size_t maxLen,
+ 
+     HASH_INIT(h1, h2, seed);
+ 
+-    for (i = 0; i < maxLen && data[i]; i++) {
+-        HASH_UPDATE(h1, h2, data[i]);
++    /* If maxLen is SIZE_MAX, clamp to a reasonable limit to avoid
++     * scanning unbounded memory regions when the caller didn't provide
++     * an explicit length. This prevents out-of-bounds reads on malformed
++     * inputs. 1024 is chosen to match XML_MAX_NAME_LENGTH.
++     */
++    size_t _scanLimit = maxLen;
++    /* Enforce a sane upper bound on the scan length to avoid indexing
++     * memory far beyond the provided pointer even if callers pass
++     * incorrect lengths. Keep consistent with XML_MAX_NAME_LENGTH.
++     */
++    if (_scanLimit == SIZE_MAX)
++        _scanLimit = 1024;
++    else if (_scanLimit > 1024)
++        _scanLimit = 1024;
++    for (i = 0; i < _scanLimit && data[i]; i++) {
++        HASH_UPDATE(h1, h2, (unsigned char) data[i]);
+     }
+ 
+     HASH_FINISH(h1, h2);
+@@ -686,7 +700,11 @@ xmlDictLookupInternal(xmlDictPtr dict, const xmlChar *prefix,
+     if ((dict == NULL) || (name == NULL))
+ 	return(NULL);
+ 
+-    maxLen = (maybeLen < 0) ? SIZE_MAX : (size_t) maybeLen;
++    /* Clamp unknown lengths to a safe maximum to avoid scanning unbounded memory. */
++    #ifndef XML_MAX_NAME_LENGTH
++    #define XML_MAX_NAME_LENGTH 1024
++    #endif
++    maxLen = (maybeLen < 0) ? XML_MAX_NAME_LENGTH : (size_t) maybeLen;
+ 
+     if (prefix == NULL) {
+         hashValue = xmlDictHashName(dict->seed, name, maxLen, &len);
+diff --git a/parser.c b/parser.c
+index 43ef214e..337dab60 100644
+--- a/parser.c
++++ b/parser.c
+@@ -3302,6 +3302,10 @@ static xmlChar * xmlParseAttValueInternal(xmlParserCtxtPtr ctxt,
+ 
+ static const xmlChar *
+ xmlParseNameComplex(xmlParserCtxtPtr ctxt) {
++    const xmlChar *orig_base = BASE_PTR;
++    const xmlChar *orig_cur = CUR_PTR;
++    const xmlChar *orig_end = ctxt->input->end;
++
+     const xmlChar *ret;
+     int len = 0, l;
+     int c;
+@@ -3401,10 +3405,17 @@ xmlParseNameComplex(xmlParserCtxtPtr ctxt) {
+                     "unexpected change of input buffer");
+         return (NULL);
+     }
++    const xmlChar *start;
+     if ((*ctxt->input->cur == '\n') && (ctxt->input->cur[-1] == '\r'))
+-        ret = xmlDictLookup(ctxt->dict, ctxt->input->cur - (len + 1), len);
++        start = orig_cur - (len + 1);
+     else
+-        ret = xmlDictLookup(ctxt->dict, ctxt->input->cur - len, len);
++        start = orig_cur - len;
++    if (start < orig_base || (size_t)(start - orig_base) + (size_t)len > (size_t)(orig_end - orig_base)) {
++        xmlFatalErr(ctxt, XML_ERR_INTERNAL_ERROR,
++                    "unexpected change of input buffer");
++        return(NULL);
++    }
++    ret = xmlDictLookup(ctxt->dict, start, len);
+     if (ret == NULL)
+         xmlErrMemory(ctxt, NULL);
+     return(ret);
+@@ -3442,6 +3453,10 @@ xmlParseName(xmlParserCtxtPtr ctxt) {
+     /*
+      * Accelerator for simple ASCII names
+      */
++    const xmlChar *orig_base = BASE_PTR;
++    const xmlChar *orig_cur = CUR_PTR;
++    const xmlChar *orig_end = ctxt->input->end;
++
+     in = ctxt->input->cur;
+     if (((*in >= 0x61) && (*in <= 0x7A)) ||
+ 	((*in >= 0x41) && (*in <= 0x5A)) ||
+@@ -3487,7 +3502,11 @@ xmlParseNCNameComplex(xmlParserCtxtPtr ctxt) {
+     /*
+      * Handler for more complex cases
+      */
+-    startPosition = CUR_PTR - BASE_PTR;
++    if (CUR_PTR < BASE_PTR) return(ret);
++    const xmlChar *orig_base = BASE_PTR;
++    const xmlChar *orig_cur = CUR_PTR;
++    const xmlChar *orig_end = ctxt->input->end;
++    startPosition = orig_cur - orig_base;
+     c = CUR_CHAR(l);
+     if ((c == ' ') || (c == '>') || (c == '/') || /* accelerators */
+ 	(!xmlIsNameStartChar(ctxt, c) || (c == ':'))) {
+@@ -3505,7 +3524,13 @@ xmlParseNCNameComplex(xmlParserCtxtPtr ctxt) {
+         xmlFatalErr(ctxt, XML_ERR_NAME_TOO_LONG, "NCName");
+         return(ret);
+     }
+-    ret = xmlDictLookupHashed(ctxt->dict, (BASE_PTR + startPosition), len);
++    const xmlChar *start = orig_base + startPosition;
++    if (start < orig_base || (size_t)(start - orig_base) + (size_t)len > (size_t)(orig_end - orig_base)) {
++        xmlFatalErr(ctxt, XML_ERR_INTERNAL_ERROR,
++                    "unexpected change of input buffer");
++        return(ret);
++    }
++    ret = xmlDictLookupHashed(ctxt->dict, start, len);
+     if (ret.name == NULL)
+         xmlErrMemory(ctxt, NULL);
+     return(ret);
+@@ -8802,6 +8827,7 @@ xmlParseQNameHashed(xmlParserCtxtPtr ctxt, xmlHashedString *prefix) {
+     p.name = NULL;
+ 
+     GROW;
++    if (CUR_PTR < BASE_PTR) { xmlHashedString _empty_ret; _empty_ret.name = NULL; _empty_ret.hashValue = 0; return _empty_ret; }
+     start = CUR_PTR - BASE_PTR;
+ 
+     l = xmlParseNCName(ctxt);

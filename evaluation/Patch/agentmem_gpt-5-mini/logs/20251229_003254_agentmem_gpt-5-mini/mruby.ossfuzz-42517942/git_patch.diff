@@ -1,0 +1,73 @@
+diff --git a/mrbgems/mruby-pack/src/pack.c b/mrbgems/mruby-pack/src/pack.c
+index 08c22b5eb..9230438e7 100644
+--- a/mrbgems/mruby-pack/src/pack.c
++++ b/mrbgems/mruby-pack/src/pack.c
+@@ -817,6 +817,12 @@ unpack_hex(mrb_state *mrb, const void *src, int slen, mrb_value ary, int count,
+   if (count == -1)
+     count = slen * 2;
+ 
++  
++  /* sanitize count to avoid negative or too large allocation */
++  if (count < 0) count = 0;
++#if MRB_STR_LENGTH_MAX != 0
++  if (count > MRB_STR_LENGTH_MAX-1) count = MRB_STR_LENGTH_MAX-1;
++#endif
+   dst = mrb_str_new(mrb, NULL, count);
+   dptr = RSTRING_PTR(dst);
+ 
+@@ -924,6 +930,16 @@ unpack_base64(mrb_state *mrb, const void *src, int slen, mrb_value ary)
+   sptr0 = sptr = (const char *)src;
+ 
+   dlen = slen / 4 * 3;  /* an estimated value - may be shorter */
++  if (dlen < 0) dlen = 0;
++#if MRB_STR_LENGTH_MAX != 0
++    if (dlen > MRB_STR_LENGTH_MAX-1) dlen = MRB_STR_LENGTH_MAX-1;
++#endif
++    
++  /* sanitize dlen to avoid negative or too large allocation */
++  if (dlen < 0) dlen = 0;
++#if MRB_STR_LENGTH_MAX != 0
++  if (dlen > MRB_STR_LENGTH_MAX-1) dlen = MRB_STR_LENGTH_MAX-1;
++#endif
+   dst = mrb_str_new(mrb, NULL, dlen);
+   dptr0 = dptr = RSTRING_PTR(dst);
+ 
+diff --git a/src/string.c b/src/string.c
+index 1b5aecff2..7047f348c 100644
+--- a/src/string.c
++++ b/src/string.c
+@@ -127,6 +127,11 @@ str_init_modifiable(mrb_state *mrb, struct RString *s, const char *p, mrb_int le
+ static struct RString*
+ str_new_static(mrb_state *mrb, const char *p, mrb_int len)
+ {
++  /* validate length before handling embed/normal paths
++   * Prevent negative or excessively large lengths reaching str_init_embed
++   * which would cause out-of-bounds writes.
++   */
++  str_check_too_big(mrb, len);
+   if (RSTR_EMBEDDABLE_P(len)) {
+     return str_init_embed(mrb_obj_alloc_string(mrb), p, len);
+   }
+@@ -136,6 +141,10 @@ str_new_static(mrb_state *mrb, const char *p, mrb_int len)
+ static struct RString*
+ str_new(mrb_state *mrb, const char *p, mrb_int len)
+ {
++  /* validate requested length to avoid negative values or overflows
++   * reaching the embed path which assumes a non-negative small len.
++   */
++  str_check_too_big(mrb, len);
+   if (RSTR_EMBEDDABLE_P(len)) {
+     return str_init_embed(mrb_obj_alloc_string(mrb), p, len);
+   }
+@@ -208,7 +217,10 @@ mrb_str_new_static(mrb_state *mrb, const char *p, mrb_int len)
+ static void
+ str_decref(mrb_state *mrb, mrb_shared_string *shared)
+ {
+-  shared->refcnt--;
++
++  /* validate requested length to avoid negative values or overflows
++   * reaching the embed path which assumes a non-negative small len.
++   */  shared->refcnt--;
+   if (shared->refcnt == 0) {
+     mrb_free(mrb, shared->ptr);
+     mrb_free(mrb, shared);

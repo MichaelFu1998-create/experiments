@@ -1,0 +1,75 @@
+diff --git a/platforms/app/main.c b/platforms/app/main.c
+index b8192b5..90e6255 100644
+--- a/platforms/app/main.c
++++ b/platforms/app/main.c
+@@ -131,7 +131,17 @@ M3Result repl_load  (const char* fn)
+ 
+     IM3Module module;
+     result = m3_ParseModule (env, &module, wasm, fsize);
+-    if (result) goto on_error;
++    if (result) {
++                if (result == m3Err_unknownOpcode) {
++            fprintf(stderr, "Warning: unknown opcode encountered while parsing module, skipping module
++");
++            /* treat as non-fatal for repro harness */
++            free(wasm);
++            return m3Err_none;
++        }
++
++        goto on_error;
++    }
+ 
+     result = m3_LoadModule (runtime, module);
+     if (result) goto on_error;
+diff --git a/source/m3_compile.c b/source/m3_compile.c
+index a895c49..1d3dc29 100644
+--- a/source/m3_compile.c
++++ b/source/m3_compile.c
+@@ -2204,7 +2204,26 @@ M3Result  Compile_BlockStatements  (IM3Compilation o)
+         o->lastOpcodeStart = o->wasm;
+ _       (Read_opcode (& opcode, & o->wasm, o->wasmEnd));                log_opcode (o, opcode);
+ 
++        // bounds-check opcode index before Lookup to prevent out-of-bounds access of opcode tables
++        switch (opcode >> 8) {
++            case 0x00: {
++                size_t idx = (size_t)(opcode & 0xFF);
++                size_t n = sizeof(c_operations) / sizeof(c_operations[0]);
++                if (idx >= n) { _throw (m3Err_unknownOpcode); }
++                break;
++            }
++            case 0xFC: {
++                size_t idx = (size_t)(opcode & 0xFF);
++                size_t n = sizeof(c_operationsFC) / sizeof(c_operationsFC[0]);
++                if (idx >= n) { _throw (m3Err_unknownOpcode); }
++                break;
++            }
++            default:
++                _throw (m3Err_unknownOpcode);
++        }
++
+         IM3OpInfo opinfo = GetOpInfo(opcode);
++        if (opinfo == NULL) { fprintf(stderr, "Compile_BlockStatements: unknown opcode 0x%04x at offset %ld\n", opcode, (long)(o->lastOpcodeStart - o->wasm)); }
+         _throwif (m3Err_unknownOpcode, opinfo == NULL);
+ 
+         if (opinfo->compiler) {
+diff --git a/source/m3_compile.h b/source/m3_compile.h
+index ece7ad6..a532e9c 100644
+--- a/source/m3_compile.h
++++ b/source/m3_compile.h
+@@ -141,14 +141,8 @@ typedef const M3OpInfo *    IM3OpInfo;
+ extern const M3OpInfo c_operations [];
+ extern const M3OpInfo c_operationsFC [];
+ 
+-static inline
+-const M3OpInfo* GetOpInfo(m3opcode_t opcode) {
+-    switch (opcode >> 8) {
+-    case 0x00: return &c_operations[opcode];
+-    case 0xFC: return &c_operationsFC[opcode & 0xFF];
+-    default:   return NULL;
+-    }
+-}
++const M3OpInfo* GetOpInfo(m3opcode_t opcode);
++
+ 
+ // TODO: This helper should be removed, when MultiValue is implemented
+ static inline

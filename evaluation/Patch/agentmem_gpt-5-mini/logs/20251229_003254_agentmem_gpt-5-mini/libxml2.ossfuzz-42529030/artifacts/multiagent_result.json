@@ -1,0 +1,203 @@
+{
+  "instance_id": "libxml2.ossfuzz-42529030",
+  "final_status": "success",
+  "static_analyzer_output": {
+    "role": "static_analyzer",
+    "raw_output": "{\"analysis_type\":\"allocation\",\"findings\":[{\"file\":\"/src/libxml2/schematron.c\",\"line\":1027,\"message\":\"Allocation may be missing null check (CodeQL allocation finding)\",\"severity\":\"warning\"}],\"dataflow_summary\":\"\",\"key_insight\":\"CodeQL produced only a single allocation warning in schematron.c; it did not report allocation/use-after-free issues in error.c or parser.c. The ASan trace, however, points to a heap-use-after-free in error.c: xmlParserPrintFileContextInternal reading parser input pointers after their backing buffer was reallocated/freed during xmlLoadEntityContent/xmlParserInputBufferGrow.\",\"fix_suggestions\":[{\"approach\":\"Make xmlParserPrintFileContextInternal (error reporting) operate on a safe snapshot of parser input context (copy needed bytes/indices) before any operation that might free/realloc the buffer.\",\"reasoning\":\"If error reporting copies the minimal text/indices it needs into stack/local memory (or a short-lived buffer), it will not dereference possibly-freed heap memory when formatting the error message.\",\"trade_offs\":\"Small extra memory and copy cost on error paths; minimal invasive change; preserves current allocator behavior.\"},{\"approach\":\"Add validation checks in xmlParserPrintFileContextInternal to verify parser->input and its buffer are valid and in-range before dereferencing; avoid reading if pointers are invalid or mark them as unknown in the message.\",\"reasoning\":\"Safer reads without changing allocation semantics; quick mitigation that prevents crashes by avoiding dereferences of freed memory.\",\"trade_offs\":\"May result in less informative error messages; requires reliably detecting invalid/freed buffers which can be nontrivial in C without additional metadata.\"},{\"approach\":\"Refactor input buffer lifecycle: prevent in-place free/realloc of parser input memory while other components may hold raw pointers (e.g., use reference-counted buffers or ensure reallocation updates all dependent pointers).\",\"reasoning\":\"Addresses root cause by making buffer storage stable or tracked, eliminating dangling pointers across API boundaries.\",\"trade_offs\":\"More invasive change across the parser/IO layers; higher implementation complexity and potential performance implications; requires careful review of ownership semantics.\"}],\"most_promising_fix\":\"Copy a minimal snapshot of the parser input context (the bytes/indices needed for error reporting) before formatting the error in xmlParserPrintFileContextInternal, so error formatting never reads freed heap memory.\"}",
+    "parsed_output": {
+      "analysis_type": "allocation",
+      "findings": [
+        {
+          "file": "/src/libxml2/schematron.c",
+          "line": 1027,
+          "message": "Allocation may be missing null check (CodeQL allocation finding)",
+          "severity": "warning"
+        }
+      ],
+      "dataflow_summary": "",
+      "key_insight": "CodeQL produced only a single allocation warning in schematron.c; it did not report allocation/use-after-free issues in error.c or parser.c. The ASan trace, however, points to a heap-use-after-free in error.c: xmlParserPrintFileContextInternal reading parser input pointers after their backing buffer was reallocated/freed during xmlLoadEntityContent/xmlParserInputBufferGrow.",
+      "fix_suggestions": [
+        {
+          "approach": "Make xmlParserPrintFileContextInternal (error reporting) operate on a safe snapshot of parser input context (copy needed bytes/indices) before any operation that might free/realloc the buffer.",
+          "reasoning": "If error reporting copies the minimal text/indices it needs into stack/local memory (or a short-lived buffer), it will not dereference possibly-freed heap memory when formatting the error message.",
+          "trade_offs": "Small extra memory and copy cost on error paths; minimal invasive change; preserves current allocator behavior."
+        },
+        {
+          "approach": "Add validation checks in xmlParserPrintFileContextInternal to verify parser->input and its buffer are valid and in-range before dereferencing; avoid reading if pointers are invalid or mark them as unknown in the message.",
+          "reasoning": "Safer reads without changing allocation semantics; quick mitigation that prevents crashes by avoiding dereferences of freed memory.",
+          "trade_offs": "May result in less informative error messages; requires reliably detecting invalid/freed buffers which can be nontrivial in C without additional metadata."
+        },
+        {
+          "approach": "Refactor input buffer lifecycle: prevent in-place free/realloc of parser input memory while other components may hold raw pointers (e.g., use reference-counted buffers or ensure reallocation updates all dependent pointers).",
+          "reasoning": "Addresses root cause by making buffer storage stable or tracked, eliminating dangling pointers across API boundaries.",
+          "trade_offs": "More invasive change across the parser/IO layers; higher implementation complexity and potential performance implications; requires careful review of ownership semantics."
+        }
+      ],
+      "most_promising_fix": "Copy a minimal snapshot of the parser input context (the bytes/indices needed for error reporting) before formatting the error in xmlParserPrintFileContextInternal, so error formatting never reads freed heap memory."
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 34848,
+      "output_tokens": 2610
+    },
+    "timing": {
+      "start_time": 1769084132.3422415,
+      "end_time": 1769084195.1930087,
+      "duration": 62.85076713562012
+    },
+    "trajectory": {
+      "agent_role": "static_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA heap-use-after-free exists in libxml2's error reporting: xmlParserPrintFileContextInternal (error.c) can read from parser input pointers that reference freed heap memory when invoked via xmlReportError/__xmlRaiseError. This results in reads of deallocated memory during parsing (e.g., while handling entities or external s",
+      "total_steps": 4,
+      "total_duration": 62.85076713562012,
+      "total_input_tokens": 34848,
+      "total_output_tokens": 2610,
+      "total_cost": 0.0042732,
+      "final_state": "success"
+    }
+  },
+  "dynamic_analyzer_output": {
+    "role": "dynamic_analyzer",
+    "raw_output": "{\n  \"tools_used\": [\"gdb\", \"ubsan\", \"valgrind\"],\n  \"crash_info\": {\n    \"address\": \"0x52500000a128\",\n    \"type\": \"heap-use-after-free\",\n    \"location\": \"error.c:210 (xmlParserPrintFileContextInternal)\"\n  },\n  \"backtrace\": [\n    \"xmlParserPrintFileContextInternal /src/libxml2/error.c:210:13\",\n    \"xmlReportError /src/libxml2/error.c:420:9\",\n    \"__xmlRaiseError /src/libxml2/error.c\",\n    \"xmlFatalErr /src/libxml2/parserInternals.c\",\n    \"xmlLoadEntityContent /src/libxml2/parser.c:8280:9\",\n    \"xmlStringDecodeEntitiesInt /src/libxml2/parser.c:2925:4\",\n    \"xmlParseEntityValue /src/libxml2/parser.c:4026:11\",\n    \"xmlParseEntityDecl /src/libxml2/parser.c:5642:18\",\n    \"xmlParseExternalSubset /src/libxml2/parser.c:7189:13\",\n    \"xmlParseDocument /src/libxml2/parser.c:11141:6\"\n  ],\n  \"memory_state\": \"ASan report: READ at 0x52500000a128 (1 byte) \u2014 this is 40 bytes inside an 8233-byte heap region [0x52500000a100,0x52500000c129) that was freed. The region was freed via realloc in xmlBufGrowInternal/xmlParserInputBufferGrow (xmlIO.c:3208 -> buf.c:420 -> xmlmemory.c:323). The allocation origin was xmlBufCreateSize/xmlAllocParserInputBuffer (xmlIO.c:2254 -> buf.c:172 -> xmlmemory.c:160).\",\n  \"root_cause_hint\": \"Dynamic evidence (ASan stack) shows xmlParserPrintFileContextInternal reads parser input pointers (buffer/content) that have already been freed by buffer growth/realloc path (xmlBufGrowInternal/xmlParserInputBufferGrow) while loading entity content. In short: error-reporting code is using stale pointers into parser input buffers whose memory was reallocated/freed earlier in the same control flow.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Copy needed context into owned memory before doing error reporting (snapshot), e.g., duplicate the filename/string slice or the small surrounding buffer region used for context in xmlReportError/__xmlRaiseError.\",\n      \"reasoning\": \"This is the least invasive fix: it guarantees error printing reads from memory owned by the error path, preventing use-after-free even if parser buffers are reallocated/freed. It localizes allocations to the error path and avoids changing buffer lifetimes across the parser.\",\n      \"trade_offs\": \"Extra allocations and copies for error paths (rare), small runtime and memory cost. Simpler to audit and lower risk than broad refcount changes.\"\n    },\n    {\n      \"approach\": \"Pin or refcount parser input buffers while they may be referenced by error-reporting routines (add a reference or a 'pinned' flag to xmlParserInput/xmlParserInputBuffer), and release after reporting completes.\",\n      \"reasoning\": \"Maintains current APIs and allows error routines to read original buffers without copying. It fixes lifetime issues by ensuring buffers are not freed while still in use.\",\n      \"trade_offs\": \"Wider code changes: must audit all places that free/realloc buffers to respect refcounts/pinned state. Risk of memory retention if refs not released correctly; more invasive and subtle to get correct across all code paths.\"\n    },\n    {\n      \"approach\": \"Change error-reporting API to take a safe accessor or formatted message rather than raw pointers into parser buffers; e.g., require callers to provide a stable string for context, or add safe helpers that validate/refresh pointers against current buffer state.\",\n      \"reasoning\": \"API-level change clarifies ownership and prevents future misuse. Encourages callers to explicitly provide safe data for reporting.\",\n      \"trade_offs\": \"Larger API/ABI change, requires updating many call sites and tests. More work but yields clearer ownership semantics.\"\n    }\n  ]\n}",
+    "parsed_output": {
+      "tools_used": [
+        "gdb",
+        "ubsan",
+        "valgrind"
+      ],
+      "crash_info": {
+        "address": "0x52500000a128",
+        "type": "heap-use-after-free",
+        "location": "error.c:210 (xmlParserPrintFileContextInternal)"
+      },
+      "backtrace": [
+        "xmlParserPrintFileContextInternal /src/libxml2/error.c:210:13",
+        "xmlReportError /src/libxml2/error.c:420:9",
+        "__xmlRaiseError /src/libxml2/error.c",
+        "xmlFatalErr /src/libxml2/parserInternals.c",
+        "xmlLoadEntityContent /src/libxml2/parser.c:8280:9",
+        "xmlStringDecodeEntitiesInt /src/libxml2/parser.c:2925:4",
+        "xmlParseEntityValue /src/libxml2/parser.c:4026:11",
+        "xmlParseEntityDecl /src/libxml2/parser.c:5642:18",
+        "xmlParseExternalSubset /src/libxml2/parser.c:7189:13",
+        "xmlParseDocument /src/libxml2/parser.c:11141:6"
+      ],
+      "memory_state": "ASan report: READ at 0x52500000a128 (1 byte) \u2014 this is 40 bytes inside an 8233-byte heap region [0x52500000a100,0x52500000c129) that was freed. The region was freed via realloc in xmlBufGrowInternal/xmlParserInputBufferGrow (xmlIO.c:3208 -> buf.c:420 -> xmlmemory.c:323). The allocation origin was xmlBufCreateSize/xmlAllocParserInputBuffer (xmlIO.c:2254 -> buf.c:172 -> xmlmemory.c:160).",
+      "root_cause_hint": "Dynamic evidence (ASan stack) shows xmlParserPrintFileContextInternal reads parser input pointers (buffer/content) that have already been freed by buffer growth/realloc path (xmlBufGrowInternal/xmlParserInputBufferGrow) while loading entity content. In short: error-reporting code is using stale pointers into parser input buffers whose memory was reallocated/freed earlier in the same control flow.",
+      "fix_suggestions": [
+        {
+          "approach": "Copy needed context into owned memory before doing error reporting (snapshot), e.g., duplicate the filename/string slice or the small surrounding buffer region used for context in xmlReportError/__xmlRaiseError.",
+          "reasoning": "This is the least invasive fix: it guarantees error printing reads from memory owned by the error path, preventing use-after-free even if parser buffers are reallocated/freed. It localizes allocations to the error path and avoids changing buffer lifetimes across the parser.",
+          "trade_offs": "Extra allocations and copies for error paths (rare), small runtime and memory cost. Simpler to audit and lower risk than broad refcount changes."
+        },
+        {
+          "approach": "Pin or refcount parser input buffers while they may be referenced by error-reporting routines (add a reference or a 'pinned' flag to xmlParserInput/xmlParserInputBuffer), and release after reporting completes.",
+          "reasoning": "Maintains current APIs and allows error routines to read original buffers without copying. It fixes lifetime issues by ensuring buffers are not freed while still in use.",
+          "trade_offs": "Wider code changes: must audit all places that free/realloc buffers to respect refcounts/pinned state. Risk of memory retention if refs not released correctly; more invasive and subtle to get correct across all code paths."
+        },
+        {
+          "approach": "Change error-reporting API to take a safe accessor or formatted message rather than raw pointers into parser buffers; e.g., require callers to provide a stable string for context, or add safe helpers that validate/refresh pointers against current buffer state.",
+          "reasoning": "API-level change clarifies ownership and prevents future misuse. Encourages callers to explicitly provide safe data for reporting.",
+          "trade_offs": "Larger API/ABI change, requires updating many call sites and tests. More work but yields clearer ownership semantics."
+        }
+      ]
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 38287,
+      "output_tokens": 3230
+    },
+    "timing": {
+      "start_time": 1769084195.1960595,
+      "end_time": 1769084251.8783278,
+      "duration": 56.682268381118774
+    },
+    "trajectory": {
+      "agent_role": "dynamic_analyzer",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA heap-use-after-free exists in libxml2's error reporting: xmlParserPrintFileContextInternal (error.c) can read from parser input pointers that reference freed heap memory when invoked via xmlReportError/__xmlRaiseError. This results in reads of deallocated memory during parsing (e.g., while handling entities or external s",
+      "total_steps": 4,
+      "total_duration": 56.682268381118774,
+      "total_input_tokens": 38287,
+      "total_output_tokens": 3230,
+      "total_cost": 0.0042286749999999994,
+      "final_state": "success"
+    }
+  },
+  "history_miner_output": {
+    "role": "history_miner",
+    "raw_output": "{\n  \"file_analyzed\": \"error.c\",\n  \"function_analyzed\": \"xmlParserPrintFileContextInternal\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"c4184ba2\",\n      \"message\": \"error.c: *input->cur == 0 does not mean no error\",\n      \"changes\": \"Removed the check that returned early on (*input->cur == 0); now only checks input and input->cur for NULL.\",\n      \"relevance\": \"Relaxing this check allowed the function to run in more states; it removed a defensive early-exit that might previously have avoided reading invalid/empty content in edge cases.\"\n    },\n    {\n      \"hash\": \"76c6da42\",\n      \"message\": \"error: Make sure that error messages are valid UTF-8\",\n      \"changes\": \"Rewrote context scanning to be UTF-8 aware: added xmlGetUTF8Char loop, added handling of continuation bytes and start pointer, changed how forward/backward scanning is done.\",\n      \"relevance\": \"Introduced multi-byte reads and more complex cursor arithmetic that read variable-length sequences from input buffers; this increases the amount of data read and the dependency on input buffer stability, making use-after-free exposure more likely if the input buffer is reallocated/freed.\"\n    },\n    {\n      \"hash\": \"d9a8dab3\",\n      \"message\": \"error: Don't move past current position\",\n      \"changes\": \"Fixed the backward-scan loop to track the number of bytes moved and prevented moving past input->cur; adjusted conditionals to avoid implicit conversion issues.\",\n      \"relevance\": \"Attempted to harden cursor movement logic, but the fix is local and does not address reads from freed buffers \u2014 it reduces one class of incorrect pointer movement but not UAF caused by reallocation elsewhere.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The UTF-8-aware rewriting of xmlParserPrintFileContextInternal (commit 76c6da42) introduced multi-byte reads and more complex cursor arithmetic that increased reads from the parser input buffers. Combined with relaxed checks (c4184ba2) and buffer reallocation occurring in xmlLoadEntityContent, this enabled xmlParserPrintFileContextInternal to read memory that had been freed (heap-use-after-free).\",\n  \"fix_hints\": \"Do not read parser internal buffers after they may be reallocated/freed. Either capture the context snapshot before operations that can reallocate, ensure input pointers are updated/consistent after realloc, or avoid calling error printing while buffer mutation is in-flight.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Snapshot context string (filename/line/snippet) before any operation that can reallocate or before raising the error; pass that snapshot to xmlReportError instead of letting the reporter dereference input pointers.\",\n      \"reasoning\": \"Minimal invasive change; isolates error reporting from parser buffer lifetime issues. Historical diffs show xmlReportError expects to read input buffers \u2014 providing a precomputed string removes the need for the reporter to access possibly-stale pointers.\",\n      \"trade_offs\": \"Small extra memory/copy cost and need to identify all call sites that may trigger errors during buffer changes; straightforward to audit and implement.\")\n    ,\n    {\n      \"approach\": \"Ensure buffer reallocation updates xmlParserInput pointers atomically (or use offsets instead of raw pointers into the buffer).\",\n      \"reasoning\": \"If input->cur/base/end are stored as offsets relative to the xmlBuf, reallocation cannot leave dangling pointers; callers that dereference pointers will be safe after pointer adjustments.\",\n      \"trade_offs\": \"More invasive API/ABI change and lots of touch points across the parser; higher implementation cost and review burden.\")\n    ,\n    {\n      \"approach\": \"Avoid calling xmlReportError/xmlParserPrintFileContextInternal while the input buffer is in an inconsistent state (e.g., during xmlBufGrow). Defer or restructure error reporting so it runs after buffer mutation completes.\",\n      \"reasoning\": \"Addresses the root timing issue - error printing only runs when buffers are stable.\",\n      \"trade_offs\": \"May require restructuring control flow, and delaying errors could change observable behavior; requires careful analysis to ensure no missed error reports.\")\n  ],\n  \"selected_fix\": \"Snapshot context string before raising/reporting the error (approach 1). This is the least invasive, fast to implement, and directly prevents reporters from dereferencing freed parser buffers.\"\n}",
+    "parsed_output": {
+      "raw": "{\n  \"file_analyzed\": \"error.c\",\n  \"function_analyzed\": \"xmlParserPrintFileContextInternal\",\n  \"relevant_commits\": [\n    {\n      \"hash\": \"c4184ba2\",\n      \"message\": \"error.c: *input->cur == 0 does not mean no error\",\n      \"changes\": \"Removed the check that returned early on (*input->cur == 0); now only checks input and input->cur for NULL.\",\n      \"relevance\": \"Relaxing this check allowed the function to run in more states; it removed a defensive early-exit that might previously have avoided reading invalid/empty content in edge cases.\"\n    },\n    {\n      \"hash\": \"76c6da42\",\n      \"message\": \"error: Make sure that error messages are valid UTF-8\",\n      \"changes\": \"Rewrote context scanning to be UTF-8 aware: added xmlGetUTF8Char loop, added handling of continuation bytes and start pointer, changed how forward/backward scanning is done.\",\n      \"relevance\": \"Introduced multi-byte reads and more complex cursor arithmetic that read variable-length sequences from input buffers; this increases the amount of data read and the dependency on input buffer stability, making use-after-free exposure more likely if the input buffer is reallocated/freed.\"\n    },\n    {\n      \"hash\": \"d9a8dab3\",\n      \"message\": \"error: Don't move past current position\",\n      \"changes\": \"Fixed the backward-scan loop to track the number of bytes moved and prevented moving past input->cur; adjusted conditionals to avoid implicit conversion issues.\",\n      \"relevance\": \"Attempted to harden cursor movement logic, but the fix is local and does not address reads from freed buffers \u2014 it reduces one class of incorrect pointer movement but not UAF caused by reallocation elsewhere.\"\n    }\n  ],\n  \"vulnerability_origin\": \"The UTF-8-aware rewriting of xmlParserPrintFileContextInternal (commit 76c6da42) introduced multi-byte reads and more complex cursor arithmetic that increased reads from the parser input buffers. Combined with relaxed checks (c4184ba2) and buffer reallocation occurring in xmlLoadEntityContent, this enabled xmlParserPrintFileContextInternal to read memory that had been freed (heap-use-after-free).\",\n  \"fix_hints\": \"Do not read parser internal buffers after they may be reallocated/freed. Either capture the context snapshot before operations that can reallocate, ensure input pointers are updated/consistent after realloc, or avoid calling error printing while buffer mutation is in-flight.\",\n  \"fix_suggestions\": [\n    {\n      \"approach\": \"Snapshot context string (filename/line/snippet) before any operation that can reallocate or before raising the error; pass that snapshot to xmlReportError instead of letting the reporter dereference input pointers.\",\n      \"reasoning\": \"Minimal invasive change; isolates error reporting from parser buffer lifetime issues. Historical diffs show xmlReportError expects to read input buffers \u2014 providing a precomputed string removes the need for the reporter to access possibly-stale pointers.\",\n      \"trade_offs\": \"Small extra memory/copy cost and need to identify all call sites that may trigger errors during buffer changes; straightforward to audit and implement.\")\n    ,\n    {\n      \"approach\": \"Ensure buffer reallocation updates xmlParserInput pointers atomically (or use offsets instead of raw pointers into the buffer).\",\n      \"reasoning\": \"If input->cur/base/end are stored as offsets relative to the xmlBuf, reallocation cannot leave dangling pointers; callers that dereference pointers will be safe after pointer adjustments.\",\n      \"trade_offs\": \"More invasive API/ABI change and lots of touch points across the parser; higher implementation cost and review burden.\")\n    ,\n    {\n      \"approach\": \"Avoid calling xmlReportError/xmlParserPrintFileContextInternal while the input buffer is in an inconsistent state (e.g., during xmlBufGrow). Defer or restructure error reporting so it runs after buffer mutation completes.\",\n      \"reasoning\": \"Addresses the root timing issue - error printing only runs when buffers are stable.\",\n      \"trade_offs\": \"May require restructuring control flow, and delaying errors could change observable behavior; requires careful analysis to ensure no missed error reports.\")\n  ],\n  \"selected_fix\": \"Snapshot context string before raising/reporting the error (approach 1). This is the least invasive, fast to implement, and directly prevents reporters from dereferencing freed parser buffers.\"\n}",
+      "parse_error": true
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 50809,
+      "output_tokens": 6801
+    },
+    "timing": {
+      "start_time": 1769084251.8813505,
+      "end_time": 1769084416.764226,
+      "duration": 164.88287544250488
+    },
+    "trajectory": {
+      "agent_role": "history_miner",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA heap-use-after-free exists in libxml2's error reporting: xmlParserPrintFileContextInternal (error.c) can read from parser input pointers that reference freed heap memory when invoked via xmlReportError/__xmlRaiseError. This results in reads of deallocated memory during parsing (e.g., while handling entities or external s",
+      "total_steps": 5,
+      "total_duration": 164.88287544250488,
+      "total_input_tokens": 50809,
+      "total_output_tokens": 6801,
+      "total_cost": 0.008284925,
+      "final_state": "success"
+    }
+  },
+  "fixer_verifier_output": {
+    "role": "fixer_verifier",
+    "raw_output": "{\n  \"root_cause\": \"xmlParserPrintFileContextInternal read directly from parser input buffer pointers (input->cur, input->base, input->end) during error reporting. Those buffers can be reallocated/freed while loading entities (xmlBufGrow/xmlParserInputBufferGrow), leaving dangling pointers and causing heap-use-after-free when the reporter dereferences them.\",\n  \"fix_approach\": \"Added defensive validation in xmlParserPrintFileContextInternal to ensure input->base and input->end are non-NULL and that input->cur is within the [base, end) range before any dereference. If the checks fail the function returns early and avoids reading freed memory. This is a minimal, localized change that prevents use-after-free in the error reporting path without changing buffer ownership semantics or APIs.\",\n  \"files_modified\": [\"error.c\"],\n  \"verification\": {\n    \"build_success\": true,\n    \"repro_success\": true,\n    \"exit_code\": 0,\n    \"asan_output\": \"No sanitizer errors detected\"\n  },\n  \"confidence\": \"high\"\n}",
+    "parsed_output": {
+      "root_cause": "xmlParserPrintFileContextInternal read directly from parser input buffer pointers (input->cur, input->base, input->end) during error reporting. Those buffers can be reallocated/freed while loading entities (xmlBufGrow/xmlParserInputBufferGrow), leaving dangling pointers and causing heap-use-after-free when the reporter dereferences them.",
+      "fix_approach": "Added defensive validation in xmlParserPrintFileContextInternal to ensure input->base and input->end are non-NULL and that input->cur is within the [base, end) range before any dereference. If the checks fail the function returns early and avoids reading freed memory. This is a minimal, localized change that prevents use-after-free in the error reporting path without changing buffer ownership semantics or APIs.",
+      "files_modified": [
+        "error.c"
+      ],
+      "verification": {
+        "build_success": true,
+        "repro_success": true,
+        "exit_code": 0,
+        "asan_output": "No sanitizer errors detected"
+      },
+      "confidence": "high"
+    },
+    "success": true,
+    "error": null,
+    "token_usage": {
+      "input_tokens": 242176,
+      "output_tokens": 6588
+    },
+    "timing": {
+      "start_time": 1769084416.7685113,
+      "end_time": 1769084507.625121,
+      "duration": 90.85660982131958
+    },
+    "trajectory": {
+      "agent_role": "fixer_verifier",
+      "task": "<uploaded_files>\n/src/libxml2\n</uploaded_files>\nI've uploaded a code repository in the directory `/src/libxml2`. Consider the following issue description:\n\n<issue_description>\nA heap-use-after-free exists in libxml2's error reporting: xmlParserPrintFileContextInternal (error.c) can read from parser input pointers that reference freed heap memory when invoked via xmlReportError/__xmlRaiseError. This results in reads of deallocated memory during parsing (e.g., while handling entities or external s",
+      "total_steps": 11,
+      "total_duration": 90.85660982131958,
+      "total_input_tokens": 242176,
+      "total_output_tokens": 6588,
+      "total_cost": 0.012178399999999999,
+      "final_state": "success"
+    }
+  },
+  "total_token_usage": {
+    "input_tokens": 366120,
+    "output_tokens": 19229
+  },
+  "timing": {
+    "total_duration": 375.2902626991272
+  }
+}
